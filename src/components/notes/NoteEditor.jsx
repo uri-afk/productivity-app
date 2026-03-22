@@ -108,8 +108,10 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
   const editorWrapperRef = useRef(null)
 
   function focusEditor() {
-    const ce = editorWrapperRef.current?.querySelector('[contenteditable]')
-    if (ce) ce.focus()
+    // Defer past the current keydown event so the browser doesn't reset focus
+    setTimeout(() => {
+      editor?.view?.dom?.focus()
+    }, 0)
   }
 
   // Slide-in animation
