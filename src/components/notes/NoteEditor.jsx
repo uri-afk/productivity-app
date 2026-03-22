@@ -105,6 +105,12 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
   const titleTimeout = useRef(null)
   const bodyTimeout = useRef(null)
   const savedTimer = useRef(null)
+  const editorWrapperRef = useRef(null)
+
+  function focusEditor() {
+    const ce = editorWrapperRef.current?.querySelector('[contenteditable]')
+    if (ce) ce.focus()
+  }
 
   // Slide-in animation
   useEffect(() => {
@@ -214,13 +220,7 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
             value={title}
             onChange={handleTitleChange}
             placeholder="Note title…"
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                const el = editor?.view?.dom
-                if (el) { el.focus(); editor.commands.focus('end') }
-              }
-            }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); focusEditor() } }}
             className="w-full text-2xl font-bold text-slate-900 dark:text-white bg-transparent outline-none placeholder-slate-300 dark:placeholder-slate-600 leading-tight"
           />
         </div>
@@ -329,7 +329,7 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
         </div>
 
         {/* ── Editor body ── */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div ref={editorWrapperRef} className="flex-1 overflow-y-auto px-6 py-5">
           <EditorContent editor={editor} />
         </div>
       </div>
