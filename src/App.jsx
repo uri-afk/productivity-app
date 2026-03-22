@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { ThemeProvider } from './lib/ThemeContext'
+import { ProjectsProvider } from './lib/ProjectsContext'
 import AuthPage from './pages/AuthPage'
 import AppShell from './components/layout/AppShell'
 import Dashboard from './pages/Dashboard'
@@ -14,15 +15,17 @@ function Spinner() {
   )
 }
 
-/** Redirect to /login if not authenticated */
 function ProtectedLayout() {
   const { loading, session } = useAuth()
   if (loading) return <Spinner />
   if (!session) return <Navigate to="/login" replace />
-  return <Outlet />
+  return (
+    <ProjectsProvider>
+      <Outlet />
+    </ProjectsProvider>
+  )
 }
 
-/** Redirect to /dashboard if already authenticated */
 function PublicLayout() {
   const { loading, session } = useAuth()
   if (loading) return <Spinner />
@@ -36,22 +39,19 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public routes */}
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<AuthPage />} />
             </Route>
 
-            {/* Protected routes — all live inside the AppShell */}
             <Route element={<ProtectedLayout />}>
               <Route element={<AppShell />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard"     element={<Dashboard />} />
-                <Route path="/project/:id"   element={<ProjectView />} />
-                <Route path="/search"        element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard"   element={<Dashboard />} />
+                <Route path="/project/:id" element={<ProjectView />} />
+                <Route path="/search"      element={<Navigate to="/dashboard" replace />} />
               </Route>
             </Route>
 
-            {/* Catch-all */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>

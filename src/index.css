@@ -1,4 +1,61 @@
 @import "tailwindcss";
 
-/* Enable class-based dark mode (toggled via JS on <html>) */
+/* Enable class-based dark mode */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* TipTap editor prose styles */
+.prose {
+  color: inherit;
+  line-height: 1.7;
+}
+.prose h1, .prose h2, .prose h3 {
+  font-weight: 600;
+  color: inherit;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.prose h2 { font-size: 1.25rem; }
+.prose h3 { font-size: 1.1rem; }
+.prose p { margin-bottom: 0.75rem; }
+.prose ul, .prose ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+.prose ul { list-style-type: disc; }
+.prose ol { list-style-type: decimal; }
+.prose li { margin-bottom: 0.25rem; }
+.prose strong { font-weight: 600; }
+.prose em { font-style: italic; }
+.prose code {
+  background: rgb(241 245 249);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-family: ui-monospace, monospace;
+}
+.dark .prose code {
+  background: rgb(30 41 59);
+}
+.prose pre {
+  background: rgb(241 245 249);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+.dark .prose pre {
+  background: rgb(15 23 42);
+}
+.prose blockquote {
+  border-left: 3px solid rgb(203 213 225);
+  padding-left: 1rem;
+  color: rgb(100 116 139);
+  margin-bottom: 0.75rem;
+}
+
+/* TipTap focus */
+.ProseMirror:focus { outline: none; }
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: rgb(148 163 184);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
