@@ -214,6 +214,7 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
             value={title}
             onChange={handleTitleChange}
             placeholder="Note title…"
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); editor?.commands.focus() } }}
             className="w-full text-2xl font-bold text-slate-900 dark:text-white bg-transparent outline-none placeholder-slate-300 dark:placeholder-slate-600 leading-tight"
           />
         </div>
