@@ -25,13 +25,45 @@ function NavItem({ to, icon: Icon, label, end }) {
   )
 }
 
+function ContextMenu({ menuRef, anchor, onRename, onDelete, onClose }) {
+  // anchor = { x, y } from right-click, or null for the ⋯ button (position via CSS)
+  const style = anchor
+    ? { position: 'fixed', top: anchor.y, left: anchor.x, zIndex: 9999 }
+    : { position: 'absolute', right: 8, top: '100%', zIndex: 9999 }
+
+  return (
+    <div
+      ref={menuRef}
+      style={style}
+      className="w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 text-sm"
+    >
+      <button
+        onClick={onRename}
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+      >
+        <Pencil size={13} /> Rename
+      </button>
+      <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+      <button
+        onClick={onDelete}
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+      >
+        <Trash2 size={13} /> Delete
+      </button>
+    </div>
+  )
+}
+
 function ProjectItem({ project, onRename, onDelete }) {
+  const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuAnchor, setMenuAnchor] = useState(null) // null = dot-button, {x,y} = right-click
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(project.name)
   const menuRef = useRef(null)
   const inputRef = useRef(null)
 
+  // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return
     const handler = (e) => { if (!menuRef.current?.contains(e.target)) setMenuOpen(false) }
@@ -43,15 +75,25 @@ function ProjectItem({ project, onRename, onDelete }) {
     if (renaming) inputRef.current?.focus()
   }, [renaming])
 
-  function handleRenameSubmit(e) {
+  function openMenu(anchor = null) {
+    setMenuAnchor(anchor)
+    setMenuOpen(true)
+  }
+
+  function handleContextMenu(e) {
     e.preventDefault()
+    openMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  function handleRenameSubmit(e) {
+    e?.preventDefault()
     if (name.trim()) onRename(project.id, name.trim())
     setRenaming(false)
   }
 
   if (renaming) {
     return (
-      <form onSubmit={handleRenameSubmit} className="flex items-center gap-1 px-2">
+      <form onSubmit={handleRenameSubmit} className="flex items-center gap-2 px-3 py-1.5">
         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: project.color ?? '#6366f1' }} />
         <input
           ref={inputRef}
@@ -59,19 +101,28 @@ function ProjectItem({ project, onRename, onDelete }) {
           onChange={e => setName(e.target.value)}
           onBlur={handleRenameSubmit}
           onKeyDown={e => { if (e.key === 'Escape') { setName(project.name); setRenaming(false) } }}
-          className="flex-1 text-sm bg-transparent border-b border-blue-500 outline-none text-slate-900 dark:text-white py-1"
+          className="flex-1 text-sm bg-transparent border-b border-blue-500 outline-none text-slate-900 dark:text-white py-0.5"
         />
-        <button type="submit" className="p-1 text-blue-600"><Check size={12} /></button>
+        <button type="submit" className="p-1 text-blue-600 hover:text-blue-700">
+          <Check size={12} />
+        </button>
       </form>
     )
   }
 
   return (
-    <div className="relative group">
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onContextMenu={handleContextMenu}
+    >
       <NavLink
         to={`/project/${project.id}`}
         className={({ isActive }) => cn(
-          'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors pr-8',
+          'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
+          // leave room for the ⋯ button when hovered
+          (hovered || menuOpen) ? 'pr-8' : 'pr-3',
           isActive
             ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white'
             : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
@@ -81,30 +132,25 @@ function ProjectItem({ project, onRename, onDelete }) {
         <span className="flex-1 truncate">{project.name}</span>
       </NavLink>
 
-      {/* Hover menu trigger */}
-      <button
-        onClick={(e) => { e.preventDefault(); setMenuOpen(v => !v) }}
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-opacity"
-      >
-        <MoreHorizontal size={13} />
-      </button>
+      {/* ⋯ button — shown via React state, not CSS group-hover */}
+      {(hovered || menuOpen) && (
+        <button
+          onMouseDown={e => { e.preventDefault(); openMenu(null) }}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+        >
+          <MoreHorizontal size={13} />
+        </button>
+      )}
 
-      {/* Dropdown */}
+      {/* Dropdown menu */}
       {menuOpen && (
-        <div ref={menuRef} className="absolute right-2 top-8 z-50 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 text-sm">
-          <button
-            onClick={() => { setMenuOpen(false); setRenaming(true) }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-          >
-            <Pencil size={12} /> Rename
-          </button>
-          <button
-            onClick={() => { setMenuOpen(false); onDelete(project.id) }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-          >
-            <Trash2 size={12} /> Delete
-          </button>
-        </div>
+        <ContextMenu
+          menuRef={menuRef}
+          anchor={menuAnchor}
+          onRename={() => { setMenuOpen(false); setRenaming(true) }}
+          onDelete={() => { setMenuOpen(false); onDelete(project.id) }}
+          onClose={() => setMenuOpen(false)}
+        />
       )}
     </div>
   )
