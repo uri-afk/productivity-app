@@ -135,7 +135,7 @@ function ProjectItem({ project, onRename, onDelete }) {
       {/* ⋯ button — shown via React state, not CSS group-hover */}
       {(hovered || menuOpen) && (
         <button
-          onMouseDown={e => { e.preventDefault(); openMenu(null) }}
+          onClick={e => { e.preventDefault(); e.stopPropagation(); openMenu(null) }}
           className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
         >
           <MoreHorizontal size={13} />
