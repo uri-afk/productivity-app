@@ -90,7 +90,7 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, activeTag,
         <PriorityBadge priority={task.priority} />
       </div>
 
-      {/* Sub-row: expand toggle + add subtask */}
+      {/* Sub-row: expand toggle (always) + add subtask (only when no subtasks yet) */}
       <div className="ml-10 flex items-center gap-3 px-2 pb-1">
         {subtasks.length > 0 && (
           <button
@@ -101,7 +101,7 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, activeTag,
             <span>{doneCount}/{subtasks.length} subtasks</span>
           </button>
         )}
-        {!addingSubtask && (
+        {subtasks.length === 0 && !addingSubtask && (
           <button
             onClick={() => { setExpanded(true); setAddingSubtask(true) }}
             className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -140,7 +140,8 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, activeTag,
             </div>
           ))}
 
-          {addingSubtask && (
+          {/* Add subtask row — at the bottom of the list */}
+          {addingSubtask ? (
             <div className="flex items-center gap-2 px-2 py-1">
               <div className="w-3.5 h-3.5 shrink-0 rounded border-2 border-dashed border-slate-300 dark:border-slate-600" />
               <input
@@ -156,6 +157,13 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, activeTag,
                 className="flex-1 text-xs bg-transparent outline-none text-slate-900 dark:text-white placeholder-slate-400"
               />
             </div>
+          ) : (
+            <button
+              onClick={() => setAddingSubtask(true)}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            >
+              <Plus size={11} /> Add subtask
+            </button>
           )}
         </div>
       )}
