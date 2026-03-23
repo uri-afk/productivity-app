@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Trash2, Tag, Plus, Bold, Italic, List, ListOrdered, ChevronRight } from 'lucide-react'
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
+import { X, Trash2, Tag, Plus, ChevronRight, FileText } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import TagBadge from '../ui/TagBadge'
-import { useTheme } from '../../lib/ThemeContext'
+import TaskNoteEditorPanel from './TaskNoteEditorPanel'
 
 const PRIORITIES = ['high', 'medium', 'low']
 const STATUSES = [
@@ -58,7 +56,6 @@ function SubtaskList({ subtasks = [], onChange }) {
     if (!title) { setAdding(false); return }
     onChange([...subtasks, { id: crypto.randomUUID(), title, done: false }])
     setNewTitle('')
-    // keep adding=true so user can quickly add another
     inputRef.current?.focus()
   }
 
@@ -140,95 +137,38 @@ function SubtaskList({ subtasks = [], onChange }) {
   )
 }
 
-// ── Task note editor ────────────────────────────────────────────────
-function ToolBtn({ onClick, active, title, children }) {
+// ── Notes list ───────────────────────────────────────────────────────
+function NotesList({ notes = [], onSelect, onAdd, onRemove }) {
   return (
-    <button
-      type="button"
-      title={title}
-      onMouseDown={e => { e.preventDefault(); onClick() }}
-      className={cn(
-        'p-1 rounded transition-colors',
-        active
-          ? 'bg-slate-200 dark:bg-slate-600 text-slate-900 dark:text-white'
-          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
-      )}
-    >
-      {children}
-    </button>
-  )
-}
+    <Section title="Notes" badge={notes.length > 0 ? `${notes.length}` : null} defaultOpen>
+      <div className="space-y-0.5">
+        {notes.map(note => (
+          <div
+            key={note.id}
+            onClick={() => onSelect(note)}
+            className="flex items-center gap-2 group py-1.5 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
+          >
+            <FileText size={13} className="text-slate-400 shrink-0" />
+            <span className="flex-1 text-sm text-slate-800 dark:text-slate-200 truncate">
+              {note.title || <span className="italic text-slate-400">Untitled</span>}
+            </span>
+            <button
+              onClick={e => { e.stopPropagation(); onRemove(note.id) }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-500 transition-all"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ))}
 
-function TaskNoteEditor({ taskId, initialContent, onSave }) {
-  const { dark } = useTheme()
-  const saveTimeout = useRef(null)
-  const [saved, setSaved] = useState(false)
-  const wrapperRef = useRef(null)
-
-  const editor = useEditor({
-    extensions: [StarterKit],
-    content: initialContent ?? '',
-    editorProps: {
-      attributes: {
-        class: 'outline-none min-h-[100px] prose prose-sm max-w-none text-sm',
-      },
-    },
-    onUpdate: ({ editor }) => {
-      setSaved(false)
-      clearTimeout(saveTimeout.current)
-      saveTimeout.current = setTimeout(() => {
-        onSave(editor.getHTML())
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2000)
-      }, 700)
-    },
-  })
-
-  useEffect(() => {
-    editor?.commands.setContent(initialContent ?? '')
-  }, [taskId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Click anywhere in the wrapper to focus the editor
-  function handleWrapperClick(e) {
-    if (e.target === wrapperRef.current) {
-      setTimeout(() => {
-        const ce = wrapperRef.current?.querySelector('[contenteditable]')
-        ce?.focus()
-      }, 0)
-    }
-  }
-
-  return (
-    <div>
-      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Notes</p>
-
-      {/* Mini toolbar */}
-      <div className="flex items-center gap-0.5 mb-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-        <ToolBtn onClick={() => editor?.chain().focus().toggleBold().run()} active={editor?.isActive('bold')} title="Bold">
-          <Bold size={13} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor?.chain().focus().toggleItalic().run()} active={editor?.isActive('italic')} title="Italic">
-          <Italic size={13} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor?.chain().focus().toggleBulletList().run()} active={editor?.isActive('bulletList')} title="Bullet list">
-          <List size={13} />
-        </ToolBtn>
-        <ToolBtn onClick={() => editor?.chain().focus().toggleOrderedList().run()} active={editor?.isActive('orderedList')} title="Numbered list">
-          <ListOrdered size={13} />
-        </ToolBtn>
-        {saved && <span className="ml-auto text-xs text-green-600 dark:text-green-400">Saved</span>}
+        <button
+          onClick={onAdd}
+          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1 px-2 transition-colors"
+        >
+          <Plus size={12} /> Add note
+        </button>
       </div>
-
-      {/* Editor area — click anywhere to focus */}
-      <div
-        ref={wrapperRef}
-        onClick={handleWrapperClick}
-        className="min-h-[100px] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-3 py-2 cursor-text"
-        style={{ color: dark ? 'rgb(248 250 252)' : 'rgb(15 23 42)' }}
-      >
-        <EditorContent editor={editor} />
-      </div>
-    </div>
+    </Section>
   )
 }
 
@@ -237,12 +177,13 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
   const [form, setForm] = useState(null)
   const [newTag, setNewTag] = useState('')
   const [addingTag, setAddingTag] = useState(false)
+  const [editingNote, setEditingNote] = useState(null)
 
   useEffect(() => {
     if (task) setForm({
       ...task,
       subtasks: task.subtasks ?? [],
-      description: task.description ?? '',
+      task_notes: task.task_notes ?? [],
     })
   }, [task])
 
@@ -270,6 +211,26 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
 
   function removeTag(tag) {
     patch('tags', (form.tags ?? []).filter(t => t !== tag))
+  }
+
+  function addNote() {
+    const newNote = { id: crypto.randomUUID(), title: '', content: '' }
+    const updated = [...form.task_notes, newNote]
+    patch('task_notes', updated)
+    setEditingNote(newNote)
+  }
+
+  function removeNote(noteId) {
+    // If the note being deleted is currently open, go back
+    if (editingNote?.id === noteId) setEditingNote(null)
+    patch('task_notes', form.task_notes.filter(n => n.id !== noteId))
+  }
+
+  function saveNote(updatedNote) {
+    const updated = form.task_notes.map(n => n.id === updatedNote.id ? updatedNote : n)
+    // update local form immediately (no patch to avoid excessive Supabase writes from auto-save)
+    setForm(f => ({ ...f, task_notes: updated }))
+    onUpdate(task.id, { task_notes: updated })
   }
 
   return (
@@ -374,21 +335,31 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
           {/* Divider */}
           <div className="border-t border-slate-200 dark:border-slate-800" />
 
-          {/* Subtasks — expanded by default */}
+          {/* Subtasks */}
           <SubtaskList
             subtasks={form.subtasks}
             onChange={subtasks => patch('subtasks', subtasks)}
           />
 
-          {/* Notes — collapsed by default, click header to expand */}
-          <TaskNoteEditor
-            taskId={task.id}
-            initialContent={form.description}
-            onSave={html => onUpdate(task.id, { description: html })}
+          {/* Notes */}
+          <NotesList
+            notes={form.task_notes}
+            onSelect={setEditingNote}
+            onAdd={addNote}
+            onRemove={removeNote}
           />
 
         </div>
       </aside>
+
+      {/* Note editor panel — slides on top */}
+      {editingNote && (
+        <TaskNoteEditorPanel
+          note={editingNote}
+          onBack={() => setEditingNote(null)}
+          onSave={saveNote}
+        />
+      )}
     </>
   )
 }

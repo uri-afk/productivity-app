@@ -90,18 +90,18 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, activeTag,
         <PriorityBadge priority={task.priority} />
       </div>
 
-      {/* Sub-row: expand toggle (always) + add subtask (only when no subtasks yet) */}
+      {/* Sub-row: expand toggle when subtasks exist; add button only when list is collapsed */}
       <div className="ml-10 flex items-center gap-3 px-2 pb-1">
-        {subtasks.length > 0 && (
+        {(subtasks.length > 0 || expanded) && (
           <button
             onClick={() => setExpanded(v => !v)}
             className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
           >
             <ChevronRight size={12} className={cn('transition-transform duration-150', expanded && 'rotate-90')} />
-            <span>{doneCount}/{subtasks.length} subtasks</span>
+            <span>{subtasks.length > 0 ? `${doneCount}/${subtasks.length} subtasks` : 'Subtasks'}</span>
           </button>
         )}
-        {subtasks.length === 0 && !addingSubtask && (
+        {!expanded && !addingSubtask && (
           <button
             onClick={() => { setExpanded(true); setAddingSubtask(true) }}
             className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
