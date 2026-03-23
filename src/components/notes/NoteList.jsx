@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Plus, FileText, Table2 } from 'lucide-react'
 import NoteCard from './NoteCard'
 
-export default function NoteList({ notes, onSelect, onCreate, onDelete }) {
+export default function NoteList({ notes: allNotes, onSelect, onCreate, onDelete }) {
+  const notes = allNotes.filter(n => n.type !== 'task_table')
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
   const [pendingType, setPendingType] = useState('text')

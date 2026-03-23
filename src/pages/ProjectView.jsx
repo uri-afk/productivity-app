@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useOutletContext, useNavigate } from 'react-router-dom'
-import { CheckSquare, FileText, Tag, Table2, Plus, Trash2 } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+import { CheckSquare, FileText, Tag, Table2, Plus } from 'lucide-react'
 import { useTasks } from '../hooks/useTasks'
 import { useNotes } from '../hooks/useNotes'
 import { useProjectsContext } from '../lib/ProjectsContext'
@@ -9,6 +8,7 @@ import TaskList from '../components/tasks/TaskList'
 import TaskBoard from '../components/tasks/TaskBoard'
 import TaskSidePanel from '../components/tasks/TaskSidePanel'
 import TableNoteEditor from '../components/notes/TableNoteEditor'
+import InlineTableNote from '../components/table/InlineTableNote'
 import TaskNoteEditorPanel from '../components/tasks/TaskNoteEditorPanel'
 import NoteList from '../components/notes/NoteList'
 import NoteEditor from '../components/notes/NoteEditor'
@@ -184,10 +184,10 @@ export default function ProjectView() {
             </div>
           )}
           {!tasksLoading && (
-            <TableSection
-              tables={notes.filter(n => n.type === 'table')}
-              onSelect={setSelectedNote}
+            <TaskTableSection
+              tables={notes.filter(n => n.type === 'task_table')}
               onCreate={createNote}
+              onUpdate={updateNote}
               onDelete={deleteNote}
             />
           )}
@@ -243,31 +243,20 @@ export default function ProjectView() {
   )
 }
 
-function TableSection({ tables, onSelect, onCreate, onDelete }) {
+function TaskTableSection({ tables, onCreate, onUpdate, onDelete }) {
   async function handleCreate() {
-    const { data } = await onCreate({
+    await onCreate({
       title: 'New Table',
-      type: 'table',
-      content: JSON.stringify({ columns: ['Column 1', 'Column 2', 'Column 3'], rows: [['', '', ''], ['', '', '']] }),
+      type: 'task_table',
+      content: JSON.stringify({
+        columns: [
+          { id: 'c0', name: 'Name',     type: 'text',   options: [] },
+          { id: 'c1', name: 'Status',   type: 'select', options: ['To Do', 'In Progress', 'Done'] },
+          { id: 'c2', name: 'Due Date', type: 'date',   options: [] },
+        ],
+        rows: [{ id: 'r0', cells: { c0: '', c1: '', c2: '' } }],
+      }),
     })
-    if (data) onSelect(data)
-  }
-
-  if (tables.length === 0) {
-    return (
-      <div className="mt-6">
-        <div className="flex items-center gap-2 mb-3">
-          <Table2 size={13} className="text-slate-400" />
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tables</span>
-        </div>
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors"
-        >
-          <Plus size={14} /> Add table
-        </button>
-      </div>
-    )
   }
 
   return (
@@ -276,40 +265,14 @@ function TableSection({ tables, onSelect, onCreate, onDelete }) {
         <Table2 size={13} className="text-slate-400" />
         <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tables</span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-2">
-        {tables.map(t => {
-          let desc = 'Table'
-          try { const p = JSON.parse(t.content); desc = `${p.columns.length} col · ${p.rows.length} rows` } catch {}
-          const date = t.created_at ? format(parseISO(t.created_at), 'MMM d, yyyy') : ''
-          return (
-            <div
-              key={t.id}
-              onClick={() => onSelect(t)}
-              className="group relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all"
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 mt-0.5">
-                  <Table2 size={15} className="text-slate-500 dark:text-slate-400" strokeWidth={1.75} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{t.title}</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{desc}</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{date}</p>
-                </div>
-              </div>
-              <button
-                onClick={e => { e.stopPropagation(); onDelete(t.id) }}
-                className="absolute top-3 right-3 p-1.5 rounded opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
-          )
-        })}
+      <div className="space-y-2">
+        {tables.map(t => (
+          <InlineTableNote key={t.id} note={t} onUpdate={onUpdate} onDelete={onDelete} />
+        ))}
       </div>
       <button
         onClick={handleCreate}
-        className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors"
+        className="mt-2 flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors"
       >
         <Plus size={14} /> Add table
       </button>
