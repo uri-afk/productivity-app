@@ -280,29 +280,27 @@ export function TableGrid({ table, onChange }) {
     onChange({ ...table, columns: cols })
   }
 
-  // Column resize via pointer capture on the right-edge handle
+  // Column resize — document mousemove/mouseup (same pattern as panel resize)
   function startColResize(e, colId) {
     e.preventDefault()
     e.stopPropagation()
     const startX = e.clientX
     const startW = colWidths[colId] ?? 140
-    const el = e.currentTarget
-    el.setPointerCapture(e.pointerId)
 
     function onMove(ev) {
       const newW = Math.max(72, startW + (ev.clientX - startX))
       setColWidths(prev => ({ ...prev, [colId]: newW }))
     }
     function onUp() {
-      el.removeEventListener('pointermove', onMove)
-      el.removeEventListener('pointerup', onUp)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
-    el.addEventListener('pointermove', onMove)
-    el.addEventListener('pointerup', onUp)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
   }
 
   return (
@@ -377,7 +375,7 @@ export function TableGrid({ table, onChange }) {
 
                 {/* Right-edge column resize handle */}
                 <div
-                  onPointerDown={e => startColResize(e, col.id)}
+                  onMouseDown={e => startColResize(e, col.id)}
                   className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-500/40 transition-colors z-10"
                 />
               </th>
