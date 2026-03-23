@@ -41,15 +41,13 @@ export default function TopNav({ view, onViewChange, onMenuClick, onNew, activeT
           {VIEWS.map(({ id, label, Icon }) => (
             <button
               key={id}
-              onClick={() => id !== 'table' && onViewChange(id)}
-              title={id === 'table' ? 'Coming in Phase 4' : label}
+              onClick={() => onViewChange(id)}
+              title={label}
               className={cn(
                 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',
-                id === 'table' && 'opacity-40 cursor-not-allowed',
-                view === id && id !== 'table'
+                view === id
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : id !== 'table' && 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300',
-                id === 'table' && 'text-slate-500 dark:text-slate-400'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
               )}
             >
               <Icon size={13} strokeWidth={1.75} />

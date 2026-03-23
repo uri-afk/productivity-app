@@ -6,6 +6,7 @@ import { useNotes } from '../hooks/useNotes'
 import { useProjectsContext } from '../lib/ProjectsContext'
 import TaskList from '../components/tasks/TaskList'
 import TaskBoard from '../components/tasks/TaskBoard'
+import TableView from '../components/table/TableView'
 import TaskSidePanel from '../components/tasks/TaskSidePanel'
 import TaskNoteEditorPanel from '../components/tasks/TaskNoteEditorPanel'
 import NoteList from '../components/notes/NoteList'
@@ -165,6 +166,8 @@ export default function ProjectView() {
               activeTag={activeTag}
               onTagClick={handleTagClick}
             />
+          ) : view === 'table' ? (
+            <TableView projectId={id} onSelectRow={undefined} />
           ) : (
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl py-1">
               <TaskList
