@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react'
-import { X, Trash2, Tag, Plus } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Trash2, Tag, Plus, Bold, Italic, List, ListOrdered } from 'lucide-react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
 import { cn } from '../../lib/cn'
 import TagBadge from '../ui/TagBadge'
+import { useTheme } from '../../lib/ThemeContext'
 
 const PRIORITIES = ['high', 'medium', 'low']
 const STATUSES = [
@@ -10,13 +13,180 @@ const STATUSES = [
   { id: 'done',        label: 'Done'        },
 ]
 
+// ── Subtask list ────────────────────────────────────────────────────
+function SubtaskList({ subtasks = [], onChange }) {
+  const [adding, setAdding] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+
+  function add() {
+    const title = newTitle.trim()
+    if (!title) return
+    onChange([...subtasks, { id: crypto.randomUUID(), title, done: false }])
+    setNewTitle('')
+    setAdding(false)
+  }
+
+  function toggle(id) {
+    onChange(subtasks.map(s => s.id === id ? { ...s, done: !s.done } : s))
+  }
+
+  function remove(id) {
+    onChange(subtasks.filter(s => s.id !== id))
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+        Subtasks {subtasks.length > 0 && <span className="normal-case font-normal text-slate-400">({subtasks.filter(s => s.done).length}/{subtasks.length})</span>}
+      </p>
+      <div className="space-y-1">
+        {subtasks.map(sub => (
+          <div key={sub.id} className="flex items-center gap-2 group py-0.5">
+            <button
+              onClick={() => toggle(sub.id)}
+              className={cn(
+                'w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors',
+                sub.done
+                  ? 'bg-blue-600 border-blue-600'
+                  : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
+              )}
+            >
+              {sub.done && (
+                <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none">
+                  <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+            <span className={cn(
+              'flex-1 text-sm',
+              sub.done
+                ? 'line-through text-slate-400 dark:text-slate-500'
+                : 'text-slate-800 dark:text-slate-200'
+            )}>
+              {sub.title}
+            </span>
+            <button
+              onClick={() => remove(sub.id)}
+              className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-500 transition-all"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ))}
+
+        {adding ? (
+          <div className="flex items-center gap-2 py-0.5">
+            <div className="w-4 h-4 shrink-0 rounded border-2 border-slate-300 dark:border-slate-600" />
+            <input
+              autoFocus
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); add() }
+                if (e.key === 'Escape') { setAdding(false); setNewTitle('') }
+              }}
+              onBlur={() => { if (newTitle.trim()) add(); else setAdding(false) }}
+              placeholder="Subtask title…"
+              className="flex-1 text-sm bg-transparent outline-none text-slate-900 dark:text-white placeholder-slate-400"
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => setAdding(true)}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 py-1 transition-colors"
+          >
+            <Plus size={12} /> Add subtask
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Minimal TipTap editor for task notes ────────────────────────────
+function ToolBtn({ onClick, active, title, children }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onMouseDown={e => { e.preventDefault(); onClick() }}
+      className={cn(
+        'p-1 rounded transition-colors',
+        active
+          ? 'bg-slate-200 dark:bg-slate-600 text-slate-900 dark:text-white'
+          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+function TaskNoteEditor({ taskId, initialContent, onSave }) {
+  const { dark } = useTheme()
+  const saveTimeout = useRef(null)
+  const [saved, setSaved] = useState(false)
+
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: initialContent ?? '',
+    editorProps: {
+      attributes: { class: 'outline-none min-h-[80px] prose prose-sm max-w-none text-sm' },
+    },
+    onUpdate: ({ editor }) => {
+      setSaved(false)
+      clearTimeout(saveTimeout.current)
+      saveTimeout.current = setTimeout(() => {
+        onSave(editor.getHTML())
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }, 700)
+    },
+  })
+
+  // Reset content when switching tasks
+  useEffect(() => {
+    editor?.commands.setContent(initialContent ?? '')
+  }, [taskId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Notes</p>
+        {saved && <span className="text-xs text-green-600 dark:text-green-400">Saved</span>}
+      </div>
+
+      {/* Mini toolbar */}
+      <div className="flex items-center gap-0.5 mb-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+        <ToolBtn onClick={() => editor?.chain().focus().toggleBold().run()} active={editor?.isActive('bold')} title="Bold">
+          <Bold size={13} />
+        </ToolBtn>
+        <ToolBtn onClick={() => editor?.chain().focus().toggleItalic().run()} active={editor?.isActive('italic')} title="Italic">
+          <Italic size={13} />
+        </ToolBtn>
+        <ToolBtn onClick={() => editor?.chain().focus().toggleBulletList().run()} active={editor?.isActive('bulletList')} title="Bullet list">
+          <List size={13} />
+        </ToolBtn>
+        <ToolBtn onClick={() => editor?.chain().focus().toggleOrderedList().run()} active={editor?.isActive('orderedList')} title="Numbered list">
+          <ListOrdered size={13} />
+        </ToolBtn>
+      </div>
+
+      <div style={{ color: dark ? 'rgb(248 250 252)' : 'rgb(15 23 42)' }}>
+        <EditorContent editor={editor} />
+      </div>
+    </div>
+  )
+}
+
+// ── Main side panel ─────────────────────────────────────────────────
 export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
   const [form, setForm] = useState(null)
   const [newTag, setNewTag] = useState('')
   const [addingTag, setAddingTag] = useState(false)
 
   useEffect(() => {
-    if (task) setForm({ ...task })
+    if (task) setForm({ ...task, subtasks: task.subtasks ?? [], description: task.description ?? '' })
   }, [task])
 
   useEffect(() => {
@@ -29,16 +199,14 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
   if (!task || !form) return null
 
   function patch(key, value) {
-    const updated = { ...form, [key]: value }
-    setForm(updated)
+    setForm(f => ({ ...f, [key]: value }))
     onUpdate(task.id, { [key]: value })
   }
 
   function addTag() {
     const tag = newTag.trim().toLowerCase()
     if (!tag || form.tags?.includes(tag)) return
-    const tags = [...(form.tags ?? []), tag]
-    patch('tags', tags)
+    patch('tags', [...(form.tags ?? []), tag])
     setNewTag('')
     setAddingTag(false)
   }
@@ -49,7 +217,6 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
 
   return (
     <>
-      {/* Backdrop — mobile */}
       <div className="fixed inset-0 bg-black/20 z-30 lg:hidden" onClick={onClose} />
 
       <aside className="fixed right-0 top-0 bottom-0 z-40 w-full max-w-sm bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl">
@@ -105,25 +272,11 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Priority</label>
             <div className="flex gap-2">
               {PRIORITIES.map(p => {
-                const colors = {
-                  high: 'border-red-200 dark:border-red-800 text-red-600 dark:text-red-400',
-                  medium: 'border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400',
-                  low: 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400',
-                }
-                const activeColors = {
-                  high: 'bg-red-600 border-red-600 text-white',
-                  medium: 'bg-amber-500 border-amber-500 text-white',
-                  low: 'bg-slate-500 border-slate-500 text-white',
-                }
+                const colors = { high: 'border-red-200 dark:border-red-800 text-red-600 dark:text-red-400', medium: 'border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400', low: 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400' }
+                const active  = { high: 'bg-red-600 border-red-600 text-white', medium: 'bg-amber-500 border-amber-500 text-white', low: 'bg-slate-500 border-slate-500 text-white' }
                 return (
-                  <button
-                    key={p}
-                    onClick={() => patch('priority', p)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium border capitalize transition-colors',
-                      form.priority === p ? activeColors[p] : colors[p]
-                    )}
-                  >
+                  <button key={p} onClick={() => patch('priority', p)}
+                    className={cn('px-3 py-1.5 rounded-lg text-xs font-medium border capitalize transition-colors', form.priority === p ? active[p] : colors[p])}>
                     {p}
                   </button>
                 )
@@ -149,9 +302,7 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
               {form.tags?.map(tag => (
                 <span key={tag} className="inline-flex items-center gap-1">
                   <TagBadge tag={tag} />
-                  <button onClick={() => removeTag(tag)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
-                    <X size={10} />
-                  </button>
+                  <button onClick={() => removeTag(tag)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white"><X size={10} /></button>
                 </span>
               ))}
             </div>
@@ -161,10 +312,7 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
                   autoFocus
                   value={newTag}
                   onChange={e => setNewTag(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { e.preventDefault(); addTag() }
-                    if (e.key === 'Escape') setAddingTag(false)
-                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } if (e.key === 'Escape') setAddingTag(false) }}
                   placeholder="tag name…"
                   className="flex-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-900 dark:text-white"
                 />
@@ -172,14 +320,28 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
                 <button onClick={() => setAddingTag(false)} className="text-xs text-slate-400">Cancel</button>
               </div>
             ) : (
-              <button
-                onClick={() => setAddingTag(true)}
-                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-              >
+              <button onClick={() => setAddingTag(true)} className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                 <Tag size={11} /> Add tag
               </button>
             )}
           </div>
+
+          <div className="border-t border-slate-200 dark:border-slate-800" />
+
+          {/* Subtasks */}
+          <SubtaskList
+            subtasks={form.subtasks}
+            onChange={subtasks => patch('subtasks', subtasks)}
+          />
+
+          <div className="border-t border-slate-200 dark:border-slate-800" />
+
+          {/* Notes */}
+          <TaskNoteEditor
+            taskId={task.id}
+            initialContent={form.description}
+            onSave={html => onUpdate(task.id, { description: html })}
+          />
         </div>
       </aside>
     </>
