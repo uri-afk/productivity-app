@@ -42,7 +42,9 @@ export function useTasks(projectId) {
   }
 
   const updateTask = async (id, updates) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
     const { error } = await supabase.from('tasks').update(updates).eq('id', id)
+    if (error) fetch()
     return { error }
   }
 

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronRight, Plus, FileText } from 'lucide-react'
+import { ChevronRight, Plus, FileText, Trash2, X } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import TagBadge from '../ui/TagBadge'
 import PriorityBadge from '../ui/PriorityBadge'
@@ -11,26 +11,30 @@ const dueDateClass = {
   future:  'text-slate-400 dark:text-slate-500',
 }
 
-export default function TaskItem({ task, onToggle, onClick, onUpdate, onNoteClick, activeTag, onTagClick }) {
+export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, onNoteClick, onAddNote, activeTag, onTagClick }) {
   const done = task.status === 'done'
   const dateLabel = formatDueDate(task.due_date)
   const dateStatus = dueDateStatus(task.due_date)
   const subtasks = task.subtasks ?? []
   const taskNotes = task.task_notes ?? []
+  const doneCount = subtasks.filter(s => s.done).length
+
   const [subtasksExpanded, setSubtasksExpanded] = useState(false)
   const [notesExpanded, setNotesExpanded] = useState(false)
   const [addingSubtask, setAddingSubtask] = useState(false)
   const [newSubtask, setNewSubtask] = useState('')
   const inputRef = useRef(null)
-  const doneCount = subtasks.filter(s => s.done).length
 
   useEffect(() => {
     if (addingSubtask) inputRef.current?.focus()
   }, [addingSubtask])
 
   function toggleSubtask(id) {
-    const updated = subtasks.map(s => s.id === id ? { ...s, done: !s.done } : s)
-    onUpdate?.(task.id, { subtasks: updated })
+    onUpdate?.(task.id, { subtasks: subtasks.map(s => s.id === id ? { ...s, done: !s.done } : s) })
+  }
+
+  function deleteSubtask(id) {
+    onUpdate?.(task.id, { subtasks: subtasks.filter(s => s.id !== id) })
   }
 
   function addSubtask() {
@@ -41,21 +45,23 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onNoteClic
     inputRef.current?.focus()
   }
 
+  function deleteTaskNote(noteId) {
+    onUpdate?.(task.id, { task_notes: taskNotes.filter(n => n.id !== noteId) })
+  }
+
   return (
     <div className={cn('rounded-lg', done && 'opacity-60')}>
-      {/* Main row */}
+
+      {/* ── Main row ── */}
       <div
-        className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg"
+        className="group/row flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg"
         onClick={() => onClick(task)}
       >
-        {/* Checkbox */}
         <button
           onClick={e => { e.stopPropagation(); onToggle(task) }}
           className={cn(
             'mt-0.5 w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors',
-            done
-              ? 'bg-blue-600 border-blue-600'
-              : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
+            done ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
           )}
         >
           {done && (
@@ -65,7 +71,6 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onNoteClic
           )}
         </button>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <p className={cn('text-sm text-slate-900 dark:text-white truncate', done && 'line-through text-slate-400 dark:text-slate-500')}>
             {task.title}
@@ -73,12 +78,8 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onNoteClic
           {(task.tags?.length > 0 || dateLabel) && (
             <div className="flex items-center flex-wrap gap-1.5 mt-1">
               {task.tags?.map(tag => (
-                <TagBadge
-                  key={tag}
-                  tag={tag}
-                  active={activeTag === tag}
-                  onClick={e => { e?.stopPropagation?.(); onTagClick?.(tag) }}
-                />
+                <TagBadge key={tag} tag={tag} active={activeTag === tag}
+                  onClick={e => { e?.stopPropagation?.(); onTagClick?.(tag) }} />
               ))}
               {dateLabel && (
                 <span className={cn('text-xs font-medium', dueDateClass[dateStatus] ?? dueDateClass.future)}>
@@ -90,51 +91,45 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onNoteClic
         </div>
 
         <PriorityBadge priority={task.priority} />
+
+        <button
+          onClick={e => { e.stopPropagation(); onDelete?.(task.id) }}
+          className="opacity-0 group-hover/row:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-all shrink-0"
+          title="Delete task"
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
 
-      {/* Sub-row: subtask toggle + add button + notes toggle */}
-      <div className="ml-10 flex items-center gap-3 px-2 pb-1">
-        {(subtasks.length > 0 || subtasksExpanded) && (
-          <button
-            onClick={() => setSubtasksExpanded(v => !v)}
-            className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-          >
-            <ChevronRight size={12} className={cn('transition-transform duration-150', subtasksExpanded && 'rotate-90')} />
-            <span>{subtasks.length > 0 ? `${doneCount}/${subtasks.length} subtasks` : 'Subtasks'}</span>
-          </button>
-        )}
-        {!subtasksExpanded && !addingSubtask && (
+      {/* ── Subtasks section ── */}
+      <div className="ml-10 px-2 pb-0.5">
+        {subtasks.length === 0 && !subtasksExpanded ? (
           <button
             onClick={() => { setSubtasksExpanded(true); setAddingSubtask(true) }}
-            className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-0.5 transition-colors"
           >
             <Plus size={11} /> Add subtask
           </button>
-        )}
-        {taskNotes.length > 0 && (
+        ) : (
           <button
-            onClick={() => setNotesExpanded(v => !v)}
-            className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            onClick={() => setSubtasksExpanded(v => !v)}
+            className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 py-0.5 transition-colors"
           >
-            <ChevronRight size={12} className={cn('transition-transform duration-150', notesExpanded && 'rotate-90')} />
-            <FileText size={11} className="ml-0.5" />
-            <span>{taskNotes.length} {taskNotes.length === 1 ? 'note' : 'notes'}</span>
+            <ChevronRight size={12} className={cn('transition-transform duration-150', subtasksExpanded && 'rotate-90')} />
+            {doneCount}/{subtasks.length} subtasks
           </button>
         )}
       </div>
 
-      {/* Subtask list + inline add */}
       {(subtasksExpanded || addingSubtask) && (
-        <div className="ml-10 mb-1.5 space-y-0.5">
+        <div className="ml-10 mb-1 space-y-0.5">
           {subtasks.map(sub => (
-            <div key={sub.id} className="flex items-center gap-2 px-2 py-1">
+            <div key={sub.id} className="group/item flex items-center gap-2 px-2 py-0.5">
               <button
                 onClick={() => toggleSubtask(sub.id)}
                 className={cn(
                   'w-3.5 h-3.5 shrink-0 rounded border-2 flex items-center justify-center transition-colors',
-                  sub.done
-                    ? 'bg-blue-600 border-blue-600'
-                    : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
+                  sub.done ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
                 )}
               >
                 {sub.done && (
@@ -143,17 +138,20 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onNoteClic
                   </svg>
                 )}
               </button>
-              <span className={cn(
-                'text-xs',
-                sub.done ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300'
-              )}>
+              <span className={cn('flex-1 text-xs', sub.done ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300')}>
                 {sub.title}
               </span>
+              <button
+                onClick={() => deleteSubtask(sub.id)}
+                className="opacity-0 group-hover/item:opacity-100 p-0.5 text-slate-400 hover:text-red-500 transition-all"
+              >
+                <X size={11} />
+              </button>
             </div>
           ))}
 
           {addingSubtask ? (
-            <div className="flex items-center gap-2 px-2 py-1">
+            <div className="flex items-center gap-2 px-2 py-0.5">
               <div className="w-3.5 h-3.5 shrink-0 rounded border-2 border-dashed border-slate-300 dark:border-slate-600" />
               <input
                 ref={inputRef}
@@ -171,7 +169,7 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onNoteClic
           ) : (
             <button
               onClick={() => setAddingSubtask(true)}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              className="flex items-center gap-1 px-2 py-0.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
             >
               <Plus size={11} /> Add subtask
             </button>
@@ -179,23 +177,49 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onNoteClic
         </div>
       )}
 
-      {/* Notes list */}
+      {/* ── Notes section ── */}
+      <div className="ml-10 px-2 pb-1">
+        {taskNotes.length === 0 ? (
+          <button
+            onClick={() => onAddNote?.(task)}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-0.5 transition-colors"
+          >
+            <Plus size={11} /> Add note
+          </button>
+        ) : (
+          <button
+            onClick={() => setNotesExpanded(v => !v)}
+            className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 py-0.5 transition-colors"
+          >
+            <ChevronRight size={12} className={cn('transition-transform duration-150', notesExpanded && 'rotate-90')} />
+            <FileText size={11} className="mx-0.5" />
+            {taskNotes.length} {taskNotes.length === 1 ? 'note' : 'notes'}
+          </button>
+        )}
+      </div>
+
       {notesExpanded && taskNotes.length > 0 && (
-        <div className="ml-10 mb-1.5 space-y-0.5">
+        <div className="ml-10 mb-2 space-y-0.5">
           {taskNotes.map(note => (
-            <button
-              key={note.id}
-              onClick={() => onNoteClick?.(task, note)}
-              className="flex items-center gap-2 w-full px-2 py-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded transition-colors"
-            >
+            <div key={note.id} className="group/item flex items-center gap-2 px-2 py-0.5">
               <FileText size={11} className="text-slate-400 shrink-0" />
-              <span className="text-xs text-slate-700 dark:text-slate-300 truncate">
+              <button
+                onClick={() => onNoteClick?.(task, note)}
+                className="flex-1 text-xs text-left text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 truncate transition-colors"
+              >
                 {note.title || <span className="italic text-slate-400">Untitled</span>}
-              </span>
-            </button>
+              </button>
+              <button
+                onClick={() => deleteTaskNote(note.id)}
+                className="opacity-0 group-hover/item:opacity-100 p-0.5 text-slate-400 hover:text-red-500 transition-all"
+              >
+                <X size={11} />
+              </button>
+            </div>
           ))}
         </div>
       )}
+
     </div>
   )
 }

@@ -78,6 +78,12 @@ export default function ProjectView() {
     setTaskNotePanel({ taskId: task.id, note })
   }
 
+  function handleAddNote(task) {
+    const newNote = { id: crypto.randomUUID(), title: '', content: '' }
+    updateTask(task.id, { task_notes: [...(task.task_notes ?? []), newNote] })
+    setTaskNotePanel({ taskId: task.id, note: newNote })
+  }
+
   function handleSaveTaskNote(updatedNote) {
     if (!taskNotePanel) return
     const task = tasks.find(t => t.id === taskNotePanel.taskId)
@@ -166,7 +172,9 @@ export default function ProjectView() {
                 onToggle={handleToggleTask}
                 onSelect={setSelectedTask}
                 onUpdate={updateTask}
+                onDelete={deleteTask}
                 onNoteClick={handleNoteClick}
+                onAddNote={handleAddNote}
                 onCreate={createTask}
                 activeTag={activeTag}
                 onTagClick={handleTagClick}
