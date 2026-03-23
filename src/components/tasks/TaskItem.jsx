@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronRight, Plus, FileText, Trash2, X } from 'lucide-react'
+import { ChevronRight, Plus, FileText, Table2, Trash2, X } from 'lucide-react'
+import { defaultTable } from '../table/tableCore'
 import { cn } from '../../lib/cn'
 import TagBadge from '../ui/TagBadge'
 import PriorityBadge from '../ui/PriorityBadge'
@@ -55,11 +56,19 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, 
   function addNote() {
     const title = newNoteTitle.trim()
     if (!title) { setAddingNote(false); return }
-    const newNote = { id: crypto.randomUUID(), title, content: '' }
+    const newNote = { id: crypto.randomUUID(), title, content: '', type: 'text' }
     onUpdate?.(task.id, { task_notes: [...taskNotes, newNote] })
     setNewNoteTitle('')
     setNotesExpanded(true)
     setAddingNote(false)
+  }
+
+  function addTableNote() {
+    const newNote = { id: crypto.randomUUID(), title: 'New Table', content: JSON.stringify(defaultTable()), type: 'table' }
+    const updated = [...taskNotes, newNote]
+    onUpdate?.(task.id, { task_notes: updated })
+    setNotesExpanded(true)
+    onNoteClick?.(task, newNote)
   }
 
   function deleteTaskNote(noteId) {
@@ -197,12 +206,16 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, 
       {/* ── Notes section ── */}
       <div className="ml-10 px-2 pb-1">
         {taskNotes.length === 0 && !addingNote ? (
-          <button
-            onClick={() => setAddingNote(true)}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-0.5 transition-colors"
-          >
-            <Plus size={11} /> Add note
-          </button>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setAddingNote(true)}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-0.5 transition-colors">
+              <Plus size={11} /><FileText size={11} /> Text
+            </button>
+            <button onClick={addTableNote}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-0.5 transition-colors">
+              <Plus size={11} /><Table2 size={11} /> Table
+            </button>
+          </div>
         ) : taskNotes.length === 0 && addingNote ? (
           <div className="flex items-center gap-2 py-0.5">
             <FileText size={11} className="text-slate-400 shrink-0" />
@@ -268,12 +281,14 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, 
               />
             </div>
           ) : (
-            <button
-              onClick={() => setAddingNote(true)}
-              className="flex items-center gap-1 px-2 py-0.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-            >
-              <Plus size={11} /> Add note
-            </button>
+            <div className="flex items-center gap-2 px-2">
+              <button onClick={() => setAddingNote(true)} className="flex items-center gap-1 py-0.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                <Plus size={11} /><FileText size={11} /> Text
+              </button>
+              <button onClick={addTableNote} className="flex items-center gap-1 py-0.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                <Plus size={11} /><Table2 size={11} /> Table
+              </button>
+            </div>
           )}
         </div>
       )}

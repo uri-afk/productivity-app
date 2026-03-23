@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Trash2, Tag, Plus, ChevronRight, FileText } from 'lucide-react'
+import { X, Trash2, Tag, Plus, ChevronRight, FileText, Table2 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import TagBadge from '../ui/TagBadge'
 import TaskNoteEditorPanel from './TaskNoteEditorPanel'
+import { defaultTable } from '../table/tableCore'
 
 const PRIORITIES = ['high', 'medium', 'low']
 const STATUSES = [
@@ -148,7 +149,10 @@ function NotesList({ notes = [], onSelect, onAdd, onRemove }) {
             onClick={() => onSelect(note)}
             className="flex items-center gap-2 group py-1.5 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
           >
-            <FileText size={13} className="text-slate-400 shrink-0" />
+            {note.type === 'table'
+              ? <Table2 size={13} className="text-slate-400 shrink-0" />
+              : <FileText size={13} className="text-slate-400 shrink-0" />
+            }
             <span className="flex-1 text-sm text-slate-800 dark:text-slate-200 truncate">
               {note.title || <span className="italic text-slate-400">Untitled</span>}
             </span>
@@ -161,12 +165,14 @@ function NotesList({ notes = [], onSelect, onAdd, onRemove }) {
           </div>
         ))}
 
-        <button
-          onClick={onAdd}
-          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-1 px-2 transition-colors"
-        >
-          <Plus size={12} /> Add note
-        </button>
+        <div className="flex items-center gap-2 px-2 pt-1">
+          <button onClick={() => onAdd('text')} className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Plus size={12} /><FileText size={11} /> Text
+          </button>
+          <button onClick={() => onAdd('table')} className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Plus size={12} /><Table2 size={11} /> Table
+          </button>
+        </div>
       </div>
     </Section>
   )
@@ -213,8 +219,13 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
     patch('tags', (form.tags ?? []).filter(t => t !== tag))
   }
 
-  function addNote() {
-    const newNote = { id: crypto.randomUUID(), title: '', content: '' }
+  function addNote(type = 'text') {
+    const newNote = {
+      id: crypto.randomUUID(),
+      title: type === 'table' ? 'New Table' : '',
+      content: type === 'table' ? JSON.stringify(defaultTable()) : '',
+      type,
+    }
     const updated = [...form.task_notes, newNote]
     patch('task_notes', updated)
     setEditingNote(newNote)
