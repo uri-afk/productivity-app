@@ -50,11 +50,6 @@
   margin-bottom: 0.75rem;
 }
 
-/* TipTap base text color — set explicitly so dark mode works
-   regardless of whether Tailwind scans the runtime class string */
-.ProseMirror { color: rgb(15 23 42); }          /* slate-900 */
-.dark .ProseMirror { color: rgb(248 250 252); }  /* slate-50  */
-
 /* TipTap focus */
 .ProseMirror:focus { outline: none; }
 .ProseMirror p.is-editor-empty:first-child::before {

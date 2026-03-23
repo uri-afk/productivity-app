@@ -8,6 +8,7 @@ import {
   List, ListOrdered, Minus, Check, ChevronDown,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
+import { useTheme } from '../../lib/ThemeContext'
 
 
 // ─── Preset palettes ──────────────────────────────────────────────
@@ -100,6 +101,7 @@ function SavedIndicator({ status }) {
 
 // ─── Main component ───────────────────────────────────────────────
 export default function NoteEditor({ note, onClose, onUpdate }) {
+  const { dark } = useTheme()
   const [title, setTitle] = useState(note?.title ?? '')
   const [saveStatus, setSaveStatus] = useState('idle')
   const [visible, setVisible] = useState(false)
@@ -335,7 +337,11 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
         </div>
 
         {/* ── Editor body ── */}
-        <div ref={editorWrapperRef} className="flex-1 overflow-y-auto px-6 py-5">
+        <div
+          ref={editorWrapperRef}
+          className="flex-1 overflow-y-auto px-6 py-5"
+          style={{ color: dark ? 'rgb(248 250 252)' : 'rgb(15 23 42)' }}
+        >
           <EditorContent editor={editor} />
         </div>
       </div>
