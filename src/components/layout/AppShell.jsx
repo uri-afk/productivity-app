@@ -6,7 +6,6 @@ import BottomTabBar from './BottomTabBar'
 
 export default function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [view, setView] = useState('list')
   const [activeTab, setActiveTab] = useState('tasks')
   const newHandlerRef = useRef(null)
 
@@ -18,15 +17,12 @@ export default function AppShell() {
 
       <div className="flex flex-col flex-1 min-w-0">
         <TopNav
-          view={view}
-          onViewChange={setView}
           onMenuClick={() => setSidebarOpen(true)}
           onNew={() => newHandlerRef.current?.()}
-          activeTab={activeTab}
         />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
-          <Outlet context={{ view, setView, activeTab, setActiveTab, registerNewHandler }} />
+          <Outlet context={{ activeTab, setActiveTab, registerNewHandler }} />
         </main>
       </div>
 

@@ -35,7 +35,17 @@ export function useTasks(projectId) {
   const createTask = async (fields) => {
     const { data, error } = await supabase
       .from('tasks')
-      .insert({ ...fields, project_id: projectId, user_id: user.id, status: 'todo', priority: 'medium', tags: [] })
+      .insert({
+        status: 'todo',
+        priority: 'medium',
+        tags: [],
+        subtasks: [],
+        task_notes: null,
+        section_id: 'general',
+        ...fields,
+        project_id: projectId,
+        user_id: user.id,
+      })
       .select()
       .single()
     return { data, error }
