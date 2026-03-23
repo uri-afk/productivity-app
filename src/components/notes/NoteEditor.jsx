@@ -410,7 +410,14 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
           className="flex-1 overflow-y-auto px-6 py-5"
           style={{ color: dark ? 'rgb(248 250 252)' : 'rgb(15 23 42)' }}>
 
-          <EditorContent editor={editor} />
+          {/* Capture-phase handlers block TipTap from receiving table drags.
+              Capture fires outer→inner, so we intercept before ProseMirror sees it. */}
+          <div
+            onDragOverCapture={e => { if (dragTableIdx !== null) { e.preventDefault(); e.stopPropagation() } }}
+            onDropCapture={e => { if (dragTableIdx !== null) { e.preventDefault(); e.stopPropagation() } }}
+          >
+            <EditorContent editor={editor} />
+          </div>
 
           {/* Embedded tables */}
           {embeddedTables.map((t, idx) => (
@@ -433,7 +440,8 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
                 onDragStart={e => {
                   setDragTableIdx(idx)
                   e.dataTransfer.effectAllowed = 'move'
-                  e.dataTransfer.setData('text/plain', String(idx))
+                  // Custom type — avoids TipTap treating this as text to insert
+                  e.dataTransfer.setData('application/x-note-table', String(idx))
                 }}
                 onDragEnd={() => { setDragTableIdx(null); setDragOverIdx(null) }}
               >

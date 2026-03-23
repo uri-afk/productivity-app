@@ -276,17 +276,20 @@ export function TableGrid({ table, onChange }) {
     e.preventDefault()
     e.stopPropagation()
     const handle = e.currentTarget
-    const startX = e.clientX
-    const startW = colWidths[colId] ?? 140
     handle.setPointerCapture(e.pointerId)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
+
+    // Read the actual rendered width from the DOM — not React state.
+    // React state may not match the browser's computed layout on first drag.
+    const colEl = colGroupRef.current?.children?.[colIndex]
+    const startW = colEl ? colEl.getBoundingClientRect().width : (colWidths[colId] ?? 140)
+    const startX = e.clientX
     let finalW = startW
+
     function onMove(ev) {
       finalW = Math.max(60, startW + (ev.clientX - startX))
-      // Update DOM directly — no React re-render during drag
-      const cols = colGroupRef.current?.children
-      if (cols?.[colIndex]) cols[colIndex].style.width = finalW + 'px'
+      if (colEl) colEl.style.width = finalW + 'px'
     }
     function onUp() {
       handle.removeEventListener('pointermove', onMove)
