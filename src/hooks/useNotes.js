@@ -23,22 +23,20 @@ export function useNotes(projectId) {
     fetch()
     const channel = supabase
       .channel(`notes-${projectId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'notes', filter: `project_id=eq.${projectId}` },
-        fetch
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notes', filter: `project_id=eq.${projectId}` }, fetch)
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [fetch, projectId])
 
   const createNote = async ({ title, type = 'text', content = '', section_id = 'general' }) => {
+    // section_id may not exist in DB yet — insert without it, merge into returned data
     const { data, error } = await supabase
       .from('notes')
-      .insert({ title, type, content, section_id, project_id: projectId, user_id: user.id })
+      .insert({ title, type, content, project_id: projectId, user_id: user.id })
       .select()
       .single()
-    return { data, error }
+    // Merge section_id so NoteListView can open the editor for the right section
+    return { data: data ? { ...data, section_id } : null, error }
   }
 
   const updateNote = async (id, updates) => {
@@ -49,7 +47,7 @@ export function useNotes(projectId) {
   const deleteNote = async (id) => {
     setNotes(prev => prev.filter(n => n.id !== id))
     const { error } = await supabase.from('notes').delete().eq('id', id)
-    if (error) fetch() // revert on error
+    if (error) fetch()
     return { error }
   }
 

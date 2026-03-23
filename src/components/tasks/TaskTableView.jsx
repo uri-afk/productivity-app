@@ -162,7 +162,7 @@ function TaskRow({
             </button>
           ) : (
             <button onClick={() => onAddSubtask(task)} title="Add subtask"
-              className="opacity-0 group-hover/row:opacity-100 text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-all">
+              className="text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-colors">
               <Plus size={12} />
             </button>
           )
@@ -299,7 +299,7 @@ function TaskRow({
       {/* Delete */}
       <td className="w-6 py-2 pr-2">
         <button onClick={() => onDelete(task.id)}
-          className="opacity-0 group-hover/row:opacity-100 p-0.5 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-all">
+          className="p-0.5 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-colors">
           <X size={12} />
         </button>
       </td>
@@ -323,8 +323,6 @@ function NewTaskRow({ sectionId, onSave, onCancel }) {
       priority: 'medium',
       due_date: today,
       tags: [],
-      subtasks: [],
-      task_notes: null,
       section_id: sectionId,
     })
     setTitle('')
@@ -506,22 +504,56 @@ function TaskSection({
                     onOpenNotes={onOpenNotes}
                     onEnterPressed={() => { setAddingTask(true); setActiveCell(null) }}
                   />
-                  {expandedSubtasks.has(task.id) && (task.subtasks ?? []).map(sub => (
-                    <TaskRow
-                      key={sub.id}
-                      task={sub}
-                      isSubtask
-                      activeCell={activeCell}
-                      onSetActiveCell={setActiveCell}
-                      onUpdate={(_, changes) => updateSubtask(task.id, sub.id, changes)}
-                      onDelete={() => deleteSubtask(task.id, sub.id)}
-                      expandedSubtasks={new Set()}
-                      onToggleExpand={() => {}}
-                      onAddSubtask={() => {}}
-                      onOpenNotes={() => {}}
-                      onEnterPressed={() => handleAddSubtask(task)}
-                    />
-                  ))}
+                  {expandedSubtasks.has(task.id) && (() => {
+                    const allSubs = task.subtasks ?? []
+                    const activeSubs = allSubs.filter(s => s.status !== 'done')
+                    const doneSubs = allSubs.filter(s => s.status === 'done')
+                    return <>
+                      {activeSubs.map(sub => (
+                        <TaskRow
+                          key={sub.id}
+                          task={sub}
+                          isSubtask
+                          activeCell={activeCell}
+                          onSetActiveCell={setActiveCell}
+                          onUpdate={(_, changes) => updateSubtask(task.id, sub.id, changes)}
+                          onDelete={() => deleteSubtask(task.id, sub.id)}
+                          expandedSubtasks={new Set()}
+                          onToggleExpand={() => {}}
+                          onAddSubtask={() => {}}
+                          onOpenNotes={() => {}}
+                          onEnterPressed={() => handleAddSubtask(task)}
+                        />
+                      ))}
+                      {/* Add subtask button row */}
+                      <tr key={`add-sub-${task.id}`} className="border-b border-slate-100 dark:border-slate-800">
+                        <td /><td />
+                        <td className="pl-8 py-1.5" colSpan={7}>
+                          <button onClick={() => handleAddSubtask(task)}
+                            className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
+                            <Plus size={11} /> Add subtask
+                          </button>
+                        </td>
+                      </tr>
+                      {/* Done subtasks */}
+                      {doneSubs.length > 0 && doneSubs.map(sub => (
+                        <TaskRow
+                          key={sub.id}
+                          task={sub}
+                          isSubtask
+                          activeCell={activeCell}
+                          onSetActiveCell={setActiveCell}
+                          onUpdate={(_, changes) => updateSubtask(task.id, sub.id, changes)}
+                          onDelete={() => deleteSubtask(task.id, sub.id)}
+                          expandedSubtasks={new Set()}
+                          onToggleExpand={() => {}}
+                          onAddSubtask={() => {}}
+                          onOpenNotes={() => {}}
+                          onEnterPressed={() => {}}
+                        />
+                      ))}
+                    </>
+                  })()}
                 </React.Fragment>
               ))}
 

@@ -23,31 +23,56 @@ export function useTasks(projectId) {
     fetch()
     const channel = supabase
       .channel(`tasks-${projectId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${projectId}` },
-        fetch
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${projectId}` }, fetch)
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [fetch, projectId])
 
   const createTask = async (fields) => {
+    // Strip columns that may not exist until SQL migration is run —
+    // they have DB defaults once added. They ARE kept in the optimistic
+    // task object so the UI shows the task in the correct section immediately.
+    const { section_id, subtasks, task_notes, ...coreFields } = fields
+
+    // Optimistic: task appears instantly in the correct section
+    const tempId = `_${Date.now()}`
+    const optimistic = {
+      id: tempId,
+      title: '',
+      status: 'todo',
+      priority: 'medium',
+      tags: [],
+      due_date: null,
+      subtasks: [],
+      task_notes: null,
+      section_id: section_id ?? 'general',
+      project_id: projectId,
+      created_at: new Date().toISOString(),
+      ...fields,    // apply all passed fields
+      id: tempId,   // always use temp id
+    }
+    setTasks(prev => [...prev, optimistic])
+
     const { data, error } = await supabase
       .from('tasks')
       .insert({
         status: 'todo',
         priority: 'medium',
         tags: [],
-        subtasks: [],
-        task_notes: null,
-        section_id: 'general',
-        ...fields,
+        ...coreFields,
         project_id: projectId,
         user_id: user.id,
       })
       .select()
       .single()
+
+    if (data) {
+      // Merge real DB row with the local section/subtask fields (DB may not have them yet)
+      setTasks(prev => prev.map(t => t.id === tempId ? { ...optimistic, ...data } : t))
+    } else {
+      // Insert failed — remove optimistic task
+      setTasks(prev => prev.filter(t => t.id !== tempId))
+    }
     return { data, error }
   }
 
@@ -61,7 +86,7 @@ export function useTasks(projectId) {
   const deleteTask = async (id) => {
     setTasks(prev => prev.filter(t => t.id !== id))
     const { error } = await supabase.from('tasks').delete().eq('id', id)
-    if (error) fetch() // revert on error
+    if (error) fetch()
     return { error }
   }
 
