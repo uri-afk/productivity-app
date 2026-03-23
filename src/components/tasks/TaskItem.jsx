@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, Plus, FileText } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import TagBadge from '../ui/TagBadge'
 import PriorityBadge from '../ui/PriorityBadge'
@@ -11,12 +11,14 @@ const dueDateClass = {
   future:  'text-slate-400 dark:text-slate-500',
 }
 
-export default function TaskItem({ task, onToggle, onClick, onUpdate, activeTag, onTagClick }) {
+export default function TaskItem({ task, onToggle, onClick, onUpdate, onNoteClick, activeTag, onTagClick }) {
   const done = task.status === 'done'
   const dateLabel = formatDueDate(task.due_date)
   const dateStatus = dueDateStatus(task.due_date)
   const subtasks = task.subtasks ?? []
-  const [expanded, setExpanded] = useState(false)
+  const taskNotes = task.task_notes ?? []
+  const [subtasksExpanded, setSubtasksExpanded] = useState(false)
+  const [notesExpanded, setNotesExpanded] = useState(false)
   const [addingSubtask, setAddingSubtask] = useState(false)
   const [newSubtask, setNewSubtask] = useState('')
   const inputRef = useRef(null)
@@ -90,29 +92,39 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, activeTag,
         <PriorityBadge priority={task.priority} />
       </div>
 
-      {/* Sub-row: expand toggle when subtasks exist; add button only when list is collapsed */}
+      {/* Sub-row: subtask toggle + add button + notes toggle */}
       <div className="ml-10 flex items-center gap-3 px-2 pb-1">
-        {(subtasks.length > 0 || expanded) && (
+        {(subtasks.length > 0 || subtasksExpanded) && (
           <button
-            onClick={() => setExpanded(v => !v)}
+            onClick={() => setSubtasksExpanded(v => !v)}
             className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
           >
-            <ChevronRight size={12} className={cn('transition-transform duration-150', expanded && 'rotate-90')} />
+            <ChevronRight size={12} className={cn('transition-transform duration-150', subtasksExpanded && 'rotate-90')} />
             <span>{subtasks.length > 0 ? `${doneCount}/${subtasks.length} subtasks` : 'Subtasks'}</span>
           </button>
         )}
-        {!expanded && !addingSubtask && (
+        {!subtasksExpanded && !addingSubtask && (
           <button
-            onClick={() => { setExpanded(true); setAddingSubtask(true) }}
+            onClick={() => { setSubtasksExpanded(true); setAddingSubtask(true) }}
             className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
           >
             <Plus size={11} /> Add subtask
           </button>
         )}
+        {taskNotes.length > 0 && (
+          <button
+            onClick={() => setNotesExpanded(v => !v)}
+            className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          >
+            <ChevronRight size={12} className={cn('transition-transform duration-150', notesExpanded && 'rotate-90')} />
+            <FileText size={11} className="ml-0.5" />
+            <span>{taskNotes.length} {taskNotes.length === 1 ? 'note' : 'notes'}</span>
+          </button>
+        )}
       </div>
 
       {/* Subtask list + inline add */}
-      {(expanded || addingSubtask) && (
+      {(subtasksExpanded || addingSubtask) && (
         <div className="ml-10 mb-1.5 space-y-0.5">
           {subtasks.map(sub => (
             <div key={sub.id} className="flex items-center gap-2 px-2 py-1">
@@ -140,7 +152,6 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, activeTag,
             </div>
           ))}
 
-          {/* Add subtask row — at the bottom of the list */}
           {addingSubtask ? (
             <div className="flex items-center gap-2 px-2 py-1">
               <div className="w-3.5 h-3.5 shrink-0 rounded border-2 border-dashed border-slate-300 dark:border-slate-600" />
@@ -165,6 +176,24 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, activeTag,
               <Plus size={11} /> Add subtask
             </button>
           )}
+        </div>
+      )}
+
+      {/* Notes list */}
+      {notesExpanded && taskNotes.length > 0 && (
+        <div className="ml-10 mb-1.5 space-y-0.5">
+          {taskNotes.map(note => (
+            <button
+              key={note.id}
+              onClick={() => onNoteClick?.(task, note)}
+              className="flex items-center gap-2 w-full px-2 py-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded transition-colors"
+            >
+              <FileText size={11} className="text-slate-400 shrink-0" />
+              <span className="text-xs text-slate-700 dark:text-slate-300 truncate">
+                {note.title || <span className="italic text-slate-400">Untitled</span>}
+              </span>
+            </button>
+          ))}
         </div>
       )}
     </div>

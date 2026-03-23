@@ -7,6 +7,7 @@ import { useProjectsContext } from '../lib/ProjectsContext'
 import TaskList from '../components/tasks/TaskList'
 import TaskBoard from '../components/tasks/TaskBoard'
 import TaskSidePanel from '../components/tasks/TaskSidePanel'
+import TaskNoteEditorPanel from '../components/tasks/TaskNoteEditorPanel'
 import NoteList from '../components/notes/NoteList'
 import NoteEditor from '../components/notes/NoteEditor'
 import TagBadge from '../components/ui/TagBadge'
@@ -30,6 +31,7 @@ export default function ProjectView() {
   const [selectedTask, setSelectedTask] = useState(null)
   const [selectedNote, setSelectedNote] = useState(null)
   const [activeTag, setActiveTag] = useState(null)
+  const [taskNotePanel, setTaskNotePanel] = useState(null) // { taskId, note }
 
   // Register +New handler based on current tab
   useEffect(() => {
@@ -70,6 +72,18 @@ export default function ProjectView() {
 
   function handleTagClick(tag) {
     setActiveTag(prev => prev === tag ? null : tag)
+  }
+
+  function handleNoteClick(task, note) {
+    setTaskNotePanel({ taskId: task.id, note })
+  }
+
+  function handleSaveTaskNote(updatedNote) {
+    if (!taskNotePanel) return
+    const task = tasks.find(t => t.id === taskNotePanel.taskId)
+    if (!task) return
+    const updated = (task.task_notes ?? []).map(n => n.id === updatedNote.id ? updatedNote : n)
+    updateTask(taskNotePanel.taskId, { task_notes: updated })
   }
 
   if (!project) return null
@@ -152,6 +166,7 @@ export default function ProjectView() {
                 onToggle={handleToggleTask}
                 onSelect={setSelectedTask}
                 onUpdate={updateTask}
+                onNoteClick={handleNoteClick}
                 onCreate={createTask}
                 activeTag={activeTag}
                 onTagClick={handleTagClick}
@@ -189,6 +204,15 @@ export default function ProjectView() {
           note={selectedNote}
           onClose={() => setSelectedNote(null)}
           onUpdate={updateNote}
+        />
+      )}
+
+      {/* Task note panel — opened from task list */}
+      {taskNotePanel && (
+        <TaskNoteEditorPanel
+          note={taskNotePanel.note}
+          onBack={() => setTaskNotePanel(null)}
+          onSave={handleSaveTaskNote}
         />
       )}
     </div>

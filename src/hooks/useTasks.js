@@ -47,7 +47,9 @@ export function useTasks(projectId) {
   }
 
   const deleteTask = async (id) => {
+    setTasks(prev => prev.filter(t => t.id !== id))
     const { error } = await supabase.from('tasks').delete().eq('id', id)
+    if (error) fetch() // revert on error
     return { error }
   }
 

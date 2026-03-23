@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react'
 import TaskItem from './TaskItem'
 import { cn } from '../../lib/cn'
 
-export default function TaskList({ tasks, onToggle, onSelect, onUpdate, onCreate, activeTag, onTagClick }) {
+export default function TaskList({ tasks, onToggle, onSelect, onUpdate, onNoteClick, onCreate, activeTag, onTagClick }) {
   const [adding, setAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
 
@@ -29,6 +29,7 @@ export default function TaskList({ tasks, onToggle, onSelect, onUpdate, onCreate
           onToggle={onToggle}
           onClick={onSelect}
           onUpdate={onUpdate}
+          onNoteClick={onNoteClick}
           activeTag={activeTag}
           onTagClick={onTagClick}
         />
