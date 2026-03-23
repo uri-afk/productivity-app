@@ -325,65 +325,68 @@ export function TableGrid({ table, onChange }) {
                 }}
                 onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null) }}
                 className={cn(
-                  'group/col relative border-b border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-left select-none',
+                  'group/col border-b border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-left select-none',
                   dragOverColIdx === ci && dragColIdx !== ci && 'border-l-2 border-l-blue-500'
                 )}
               >
-                <div className="flex items-center gap-1 px-2 py-2">
-                  {/* Drag-to-reorder handle — only this element is draggable */}
-                  <div
-                    draggable
-                    onDragStart={e => {
-                      e.dataTransfer.effectAllowed = 'move'
-                      e.dataTransfer.setData('col-idx', String(ci))
-                      setDragColIdx(ci)
-                    }}
-                    className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400 shrink-0 opacity-0 group-hover/col:opacity-100 transition-opacity"
-                    title="Drag to reorder"
-                  >
-                    <GripVertical size={12} />
-                  </div>
-
-                  {/* Type selector */}
-                  <div className="relative shrink-0">
-                    <button
-                      onClick={() => setTypeMenuCol(typeMenuCol === col.id ? null : col.id)}
-                      className="text-xs text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors border border-slate-200 dark:border-slate-600 rounded px-1 py-0.5 leading-none"
+                {/* Flex row: content + resize handle at right edge (no absolute positioning) */}
+                <div className="flex items-stretch">
+                  <div className="flex items-center gap-1 px-2 py-2 flex-1 min-w-0">
+                    {/* Drag-to-reorder handle */}
+                    <div
+                      draggable
+                      onDragStart={e => {
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('col-idx', String(ci))
+                        setDragColIdx(ci)
+                      }}
+                      className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400 shrink-0 opacity-40 group-hover/col:opacity-100 transition-opacity"
+                      title="Drag to reorder"
                     >
-                      {COL_TYPES.find(t => t.id === col.type)?.label ?? 'Text'}
-                    </button>
-                    {typeMenuCol === col.id && (
-                      <ColTypeMenu
-                        col={col}
-                        onChangeType={(type, options) => updateColType(col.id, type, options)}
-                        onClose={() => setTypeMenuCol(null)}
-                      />
+                      <GripVertical size={12} />
+                    </div>
+
+                    {/* Type selector */}
+                    <div className="relative shrink-0">
+                      <button
+                        onClick={() => setTypeMenuCol(typeMenuCol === col.id ? null : col.id)}
+                        className="text-xs text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors border border-slate-200 dark:border-slate-600 rounded px-1 py-0.5 leading-none"
+                      >
+                        {COL_TYPES.find(t => t.id === col.type)?.label ?? 'Text'}
+                      </button>
+                      {typeMenuCol === col.id && (
+                        <ColTypeMenu
+                          col={col}
+                          onChangeType={(type, options) => updateColType(col.id, type, options)}
+                          onClose={() => setTypeMenuCol(null)}
+                        />
+                      )}
+                    </div>
+
+                    {/* Column name */}
+                    <input
+                      value={col.name}
+                      onChange={e => updateHeader(col.id, e.target.value)}
+                      className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide bg-transparent outline-none min-w-0 cursor-text"
+                    />
+
+                    {/* Delete column */}
+                    {table.columns.length > 1 && (
+                      <button
+                        onClick={() => deleteColumn(col.id)}
+                        className="opacity-0 group-hover/col:opacity-100 text-slate-400 hover:text-red-500 transition-all shrink-0"
+                      >
+                        <X size={11} />
+                      </button>
                     )}
                   </div>
 
-                  {/* Column name */}
-                  <input
-                    value={col.name}
-                    onChange={e => updateHeader(col.id, e.target.value)}
-                    className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide bg-transparent outline-none min-w-0 cursor-text"
+                  {/* Right-edge resize handle — inline flex child, no absolute positioning */}
+                  <div
+                    onMouseDown={e => startColResize(e, col.id)}
+                    className="w-1.5 shrink-0 cursor-col-resize hover:bg-blue-500/40 transition-colors"
                   />
-
-                  {/* Delete column */}
-                  {table.columns.length > 1 && (
-                    <button
-                      onClick={() => deleteColumn(col.id)}
-                      className="opacity-0 group-hover/col:opacity-100 text-slate-400 hover:text-red-500 transition-all shrink-0"
-                    >
-                      <X size={11} />
-                    </button>
-                  )}
                 </div>
-
-                {/* Right-edge column resize handle */}
-                <div
-                  onMouseDown={e => startColResize(e, col.id)}
-                  className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-500/40 transition-colors z-10"
-                />
               </th>
             ))}
             <th className="border-b border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 w-10">
