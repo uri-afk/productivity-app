@@ -19,15 +19,16 @@ const FONT_SIZES = [
 ]
 
 const COLORS = [
-  { label: 'Default', value: null      },
-  { label: 'Gray',    value: '#6b7280' },
-  { label: 'Red',     value: '#ef4444' },
-  { label: 'Orange',  value: '#f97316' },
-  { label: 'Amber',   value: '#f59e0b' },
-  { label: 'Green',   value: '#22c55e' },
-  { label: 'Blue',    value: '#3b82f6' },
-  { label: 'Purple',  value: '#a855f7' },
-  { label: 'Pink',    value: '#ec4899' },
+  { label: 'Default', value: null,      swatch: null      }, // renders as ⊘
+  { label: 'White',   value: '#ffffff', swatch: '#ffffff' },
+  { label: 'Gray',    value: '#6b7280', swatch: '#6b7280' },
+  { label: 'Red',     value: '#ef4444', swatch: '#ef4444' },
+  { label: 'Orange',  value: '#f97316', swatch: '#f97316' },
+  { label: 'Amber',   value: '#f59e0b', swatch: '#f59e0b' },
+  { label: 'Green',   value: '#22c55e', swatch: '#22c55e' },
+  { label: 'Blue',    value: '#3b82f6', swatch: '#3b82f6' },
+  { label: 'Purple',  value: '#a855f7', swatch: '#a855f7' },
+  { label: 'Pink',    value: '#ec4899', swatch: '#ec4899' },
 ]
 
 // ─── Toolbar helpers ──────────────────────────────────────────────
@@ -137,7 +138,7 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
     content: note?.content ?? '',
     editorProps: {
       attributes: {
-        class: 'outline-none min-h-64 prose prose-sm dark:prose-invert max-w-none text-slate-900 dark:text-white',
+        class: 'outline-none min-h-64 prose prose-sm max-w-none',
       },
     },
     onUpdate: ({ editor }) => {
@@ -290,7 +291,7 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
           >
             {close => (
               <div className="px-3 py-2 grid grid-cols-5 gap-1.5">
-                {COLORS.map(({ label, value }) => (
+                {COLORS.map(({ label, value, swatch }) => (
                   <button
                     key={label}
                     type="button"
@@ -302,11 +303,14 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
                       close()
                     }}
                     className={cn(
-                      'w-6 h-6 rounded-full border-2 transition-transform hover:scale-110',
-                      activeColor === value ? 'border-blue-500' : 'border-transparent'
+                      'w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center',
+                      activeColor === value ? 'border-blue-500' : 'border-slate-200 dark:border-slate-600'
                     )}
-                    style={{ backgroundColor: value ?? '#e2e8f0' }}
-                  />
+                    style={swatch ? { backgroundColor: swatch } : {}}
+                  >
+                    {/* Default = reset icon */}
+                    {!swatch && <span className="text-slate-400 text-xs leading-none">↺</span>}
+                  </button>
                 ))}
               </div>
             )}
