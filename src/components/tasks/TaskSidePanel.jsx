@@ -43,10 +43,38 @@ function Section({ title, badge, defaultOpen = true, children }) {
   )
 }
 
+// ── Subtask row ──────────────────────────────────────────────────────
+function SubtaskRow({ sub, onToggle, onRemove }) {
+  return (
+    <div className="flex items-center gap-2 group py-0.5">
+      <button
+        onClick={() => onToggle(sub.id)}
+        className={cn(
+          'w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors',
+          sub.done ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
+        )}
+      >
+        {sub.done && (
+          <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none">
+            <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </button>
+      <span className={cn('flex-1 text-sm', sub.done ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200')}>
+        {sub.title}
+      </span>
+      <button onClick={() => onRemove(sub.id)} className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-500 transition-all">
+        <X size={12} />
+      </button>
+    </div>
+  )
+}
+
 // ── Subtask list ────────────────────────────────────────────────────
 function SubtaskList({ subtasks = [], onChange }) {
   const [adding, setAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
+  const [showFinished, setShowFinished] = useState(false)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -69,45 +97,18 @@ function SubtaskList({ subtasks = [], onChange }) {
     onChange(subtasks.filter(s => s.id !== id))
   }
 
-  const done = subtasks.filter(s => s.done).length
+  const open = subtasks.filter(s => !s.done)
+  const done = subtasks.filter(s => s.done)
 
   return (
     <Section
       title="Subtasks"
-      badge={subtasks.length > 0 ? `${done}/${subtasks.length}` : null}
+      badge={subtasks.length > 0 ? `${done.length}/${subtasks.length}` : null}
       defaultOpen
     >
       <div className="space-y-1">
-        {subtasks.map(sub => (
-          <div key={sub.id} className="flex items-center gap-2 group py-0.5">
-            <button
-              onClick={() => toggle(sub.id)}
-              className={cn(
-                'w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors',
-                sub.done
-                  ? 'bg-blue-600 border-blue-600'
-                  : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
-              )}
-            >
-              {sub.done && (
-                <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none">
-                  <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </button>
-            <span className={cn(
-              'flex-1 text-sm',
-              sub.done ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'
-            )}>
-              {sub.title}
-            </span>
-            <button
-              onClick={() => remove(sub.id)}
-              className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-500 transition-all"
-            >
-              <X size={12} />
-            </button>
-          </div>
+        {open.map(sub => (
+          <SubtaskRow key={sub.id} sub={sub} onToggle={toggle} onRemove={remove} />
         ))}
 
         {adding ? (
@@ -133,6 +134,26 @@ function SubtaskList({ subtasks = [], onChange }) {
           >
             <Plus size={12} /> Add subtask
           </button>
+        )}
+
+        {/* Finished subtasks */}
+        {done.length > 0 && (
+          <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800">
+            <button
+              onClick={() => setShowFinished(v => !v)}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 py-0.5 transition-colors"
+            >
+              <ChevronRight size={11} className={cn('transition-transform duration-150', showFinished && 'rotate-90')} />
+              Finished ({done.length})
+            </button>
+            {showFinished && (
+              <div className="mt-1 space-y-1">
+                {done.map(sub => (
+                  <SubtaskRow key={sub.id} sub={sub} onToggle={toggle} onRemove={remove} />
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </Section>
@@ -252,7 +273,7 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
 
       <aside className="fixed right-0 top-0 bottom-0 z-40 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl" style={{ width }}>
         {/* Resize handle */}
-        <div onPointerDown={startResize}
+        <div onMouseDown={startResize}
           className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10" />
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">

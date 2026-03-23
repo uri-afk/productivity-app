@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, ChevronRight } from 'lucide-react'
 import TaskItem from './TaskItem'
 import { cn } from '../../lib/cn'
 
 export default function TaskList({ tasks, onToggle, onSelect, onUpdate, onDelete, onNoteClick, onCreate, activeTag, onTagClick }) {
   const [adding, setAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
+  const [showFinished, setShowFinished] = useState(false)
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -66,26 +67,33 @@ export default function TaskList({ tasks, onToggle, onSelect, onUpdate, onDelete
         </button>
       )}
 
-      {/* Done tasks */}
+      {/* Finished Tasks */}
       {done.length > 0 && (
-        <details className="pt-2">
-          <summary className="px-3 py-1 text-xs font-medium text-slate-400 dark:text-slate-500 cursor-pointer hover:text-slate-600 dark:hover:text-slate-400 list-none flex items-center gap-1">
-            <span className="text-slate-300 dark:text-slate-600">▶</span>
-            Completed ({done.length})
-          </summary>
-          <div className="mt-1 space-y-0.5">
-            {done.map(task => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onToggle={onToggle}
-                onClick={onSelect}
-                activeTag={activeTag}
-                onTagClick={onTagClick}
-              />
-            ))}
-          </div>
-        </details>
+        <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-800">
+          <button
+            onClick={() => setShowFinished(v => !v)}
+            className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 transition-colors"
+          >
+            <ChevronRight size={12} className={cn('transition-transform duration-150', showFinished && 'rotate-90')} />
+            Finished Tasks ({done.length})
+          </button>
+          {showFinished && (
+            <div className="mt-0.5 space-y-0.5">
+              {done.map(task => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  onToggle={onToggle}
+                  onClick={onSelect}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                  activeTag={activeTag}
+                  onTagClick={onTagClick}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

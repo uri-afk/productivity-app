@@ -306,6 +306,13 @@ export function TableGrid({ table, onChange }) {
   return (
     <div className="overflow-x-auto">
       <table className="border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
+        {/* colgroup is the canonical way to drive fixed-layout column widths */}
+        <colgroup>
+          {table.columns.map(col => (
+            <col key={col.id} style={{ width: colWidths[col.id] ?? 140 }} />
+          ))}
+          <col style={{ width: 40 }} />
+        </colgroup>
         <thead>
           <tr>
             {table.columns.map((col, ci) => (
@@ -317,7 +324,6 @@ export function TableGrid({ table, onChange }) {
                   setDragColIdx(null); setDragOverColIdx(null)
                 }}
                 onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null) }}
-                style={{ width: colWidths[col.id] ?? 140 }}
                 className={cn(
                   'group/col relative border-b border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-left select-none',
                   dragOverColIdx === ci && dragColIdx !== ci && 'border-l-2 border-l-blue-500'

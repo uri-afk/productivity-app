@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useOutletContext, useNavigate } from 'react-router-dom'
 import { CheckSquare, FileText, Tag, Table2, Plus } from 'lucide-react'
+import { useResizable } from '../hooks/useResizable'
 import { useTasks } from '../hooks/useTasks'
 import { useNotes } from '../hooks/useNotes'
 import { useProjectsContext } from '../lib/ProjectsContext'
@@ -94,10 +95,19 @@ export default function ProjectView() {
     updateTask(taskNotePanel.taskId, { task_notes: updated })
   }
 
+  const { width: contentWidth, startResize } = useResizable({
+    defaultWidth: 896, minWidth: 400, maxWidth: 1400, flip: true,
+  })
+
   if (!project) return null
 
   return (
-    <div className="max-w-4xl">
+    <div className="relative" style={{ width: contentWidth, maxWidth: '100%' }}>
+      {/* Right-edge drag handle to resize content width */}
+      <div
+        onMouseDown={startResize}
+        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10"
+      />
       {/* Project header */}
       <div className="flex items-center gap-3 mb-5">
         <div

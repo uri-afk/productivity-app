@@ -9,10 +9,42 @@ export default function InlineTableNote({ note, onUpdate, onDelete }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [title, setTitle] = useState(note.title)
   const [saved, setSaved] = useState(false)
+  const [tableHeight, setTableHeight] = useState(null) // null = auto
   const saveTimeout = useRef(null)
   const savedTimer = useRef(null)
+  const tableContainerRef = useRef(null)
+  const heightDrag = useRef({ on: false, startY: 0, startH: 0 })
 
   useEffect(() => { setTitle(note.title) }, [note.title])
+
+  // Height resize — document listeners
+  useEffect(() => {
+    function onMove(e) {
+      if (!heightDrag.current.on) return
+      const newH = Math.max(80, heightDrag.current.startH + (e.clientY - heightDrag.current.startY))
+      setTableHeight(newH)
+    }
+    function onUp() {
+      heightDrag.current.on = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [])
+
+  function startHeightResize(e) {
+    e.preventDefault()
+    heightDrag.current.on = true
+    heightDrag.current.startY = e.clientY
+    heightDrag.current.startH = tableHeight ?? (tableContainerRef.current?.offsetHeight ?? 200)
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+  }
 
   function markSaved() {
     setSaved(true)
@@ -47,9 +79,13 @@ export default function InlineTableNote({ note, onUpdate, onDelete }) {
             onBlur={saveTitle} onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') saveTitle() }}
             className="flex-1 text-sm font-medium bg-transparent outline-none text-slate-900 dark:text-white" />
         ) : (
-          <button onClick={() => setEditingTitle(true)}
-            className="flex-1 text-left text-sm font-medium text-slate-900 dark:text-white hover:text-slate-700 dark:hover:text-slate-300">
-            {note.title || <span className="italic text-slate-400">Untitled table</span>}
+          // Single click = toggle expand/collapse; double-click = edit title
+          <button
+            onClick={() => setExpanded(v => !v)}
+            onDoubleClick={() => setEditingTitle(true)}
+            className="flex-1 text-left text-sm font-medium text-slate-900 dark:text-white hover:text-slate-700 dark:hover:text-slate-300"
+          >
+            {title || <span className="italic text-slate-400">Untitled table</span>}
           </button>
         )}
 
@@ -70,7 +106,19 @@ export default function InlineTableNote({ note, onUpdate, onDelete }) {
       {/* Expanded table */}
       {expanded && (
         <div className="border-t border-slate-200 dark:border-slate-700">
-          <TableGrid table={table} onChange={handleTableChange} />
+          <div
+            ref={tableContainerRef}
+            style={tableHeight ? { height: tableHeight, overflowY: 'auto' } : {}}
+          >
+            <TableGrid table={table} onChange={handleTableChange} />
+          </div>
+          {/* Bottom resize handle */}
+          <div
+            onMouseDown={startHeightResize}
+            className="w-full h-2 cursor-ns-resize hover:bg-blue-500/20 transition-colors flex items-center justify-center"
+          >
+            <div className="w-8 h-0.5 rounded-full bg-slate-200 dark:bg-slate-700" />
+          </div>
         </div>
       )}
     </div>
