@@ -11,7 +11,7 @@ const dueDateClass = {
   future:  'text-slate-400 dark:text-slate-500',
 }
 
-export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, onNoteClick, onAddNote, activeTag, onTagClick }) {
+export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, onNoteClick, activeTag, onTagClick }) {
   const done = task.status === 'done'
   const dateLabel = formatDueDate(task.due_date)
   const dateStatus = dueDateStatus(task.due_date)
@@ -23,11 +23,18 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, 
   const [notesExpanded, setNotesExpanded] = useState(false)
   const [addingSubtask, setAddingSubtask] = useState(false)
   const [newSubtask, setNewSubtask] = useState('')
-  const inputRef = useRef(null)
+  const [addingNote, setAddingNote] = useState(false)
+  const [newNoteTitle, setNewNoteTitle] = useState('')
+  const subtaskInputRef = useRef(null)
+  const noteInputRef = useRef(null)
 
   useEffect(() => {
-    if (addingSubtask) inputRef.current?.focus()
+    if (addingSubtask) subtaskInputRef.current?.focus()
   }, [addingSubtask])
+
+  useEffect(() => {
+    if (addingNote) noteInputRef.current?.focus()
+  }, [addingNote])
 
   function toggleSubtask(id) {
     onUpdate?.(task.id, { subtasks: subtasks.map(s => s.id === id ? { ...s, done: !s.done } : s) })
@@ -42,7 +49,17 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, 
     if (!title) { setAddingSubtask(false); return }
     onUpdate?.(task.id, { subtasks: [...subtasks, { id: crypto.randomUUID(), title, done: false }] })
     setNewSubtask('')
-    inputRef.current?.focus()
+    subtaskInputRef.current?.focus()
+  }
+
+  function addNote() {
+    const title = newNoteTitle.trim()
+    if (!title) { setAddingNote(false); return }
+    const newNote = { id: crypto.randomUUID(), title, content: '' }
+    onUpdate?.(task.id, { task_notes: [...taskNotes, newNote] })
+    setNewNoteTitle('')
+    setNotesExpanded(true)
+    setAddingNote(false)
   }
 
   function deleteTaskNote(noteId) {
@@ -154,7 +171,7 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, 
             <div className="flex items-center gap-2 px-2 py-0.5">
               <div className="w-3.5 h-3.5 shrink-0 rounded border-2 border-dashed border-slate-300 dark:border-slate-600" />
               <input
-                ref={inputRef}
+                ref={subtaskInputRef}
                 value={newSubtask}
                 onChange={e => setNewSubtask(e.target.value)}
                 onKeyDown={e => {
@@ -179,13 +196,29 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, 
 
       {/* ── Notes section ── */}
       <div className="ml-10 px-2 pb-1">
-        {taskNotes.length === 0 ? (
+        {taskNotes.length === 0 && !addingNote ? (
           <button
-            onClick={() => onAddNote?.(task)}
+            onClick={() => setAddingNote(true)}
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 py-0.5 transition-colors"
           >
             <Plus size={11} /> Add note
           </button>
+        ) : taskNotes.length === 0 && addingNote ? (
+          <div className="flex items-center gap-2 py-0.5">
+            <FileText size={11} className="text-slate-400 shrink-0" />
+            <input
+              ref={noteInputRef}
+              value={newNoteTitle}
+              onChange={e => setNewNoteTitle(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); addNote() }
+                if (e.key === 'Escape') { setAddingNote(false); setNewNoteTitle('') }
+              }}
+              onBlur={() => { addNote(); setAddingNote(false) }}
+              placeholder="Note title…"
+              className="flex-1 text-xs bg-transparent outline-none text-slate-900 dark:text-white placeholder-slate-400"
+            />
+          </div>
         ) : (
           <button
             onClick={() => setNotesExpanded(v => !v)}
@@ -198,7 +231,7 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, 
         )}
       </div>
 
-      {notesExpanded && taskNotes.length > 0 && (
+      {(notesExpanded || addingNote) && taskNotes.length > 0 && (
         <div className="ml-10 mb-2 space-y-0.5">
           {taskNotes.map(note => (
             <div key={note.id} className="group/item flex items-center gap-2 px-2 py-0.5">
@@ -217,6 +250,31 @@ export default function TaskItem({ task, onToggle, onClick, onUpdate, onDelete, 
               </button>
             </div>
           ))}
+
+          {addingNote ? (
+            <div className="flex items-center gap-2 px-2 py-0.5">
+              <FileText size={11} className="text-slate-400 shrink-0" />
+              <input
+                ref={noteInputRef}
+                value={newNoteTitle}
+                onChange={e => setNewNoteTitle(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); addNote() }
+                  if (e.key === 'Escape') { setAddingNote(false); setNewNoteTitle('') }
+                }}
+                onBlur={() => { addNote(); setAddingNote(false) }}
+                placeholder="Note title…"
+                className="flex-1 text-xs bg-transparent outline-none text-slate-900 dark:text-white placeholder-slate-400"
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setAddingNote(true)}
+              className="flex items-center gap-1 px-2 py-0.5 text-xs text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            >
+              <Plus size={11} /> Add note
+            </button>
+          )}
         </div>
       )}
 
