@@ -240,8 +240,28 @@ export function TableGrid({ table, onChange }) {
   const [dragColIdx, setDragColIdx] = useState(null)
   const [dragOverColIdx, setDragOverColIdx] = useState(null)
   const [typeMenuCol, setTypeMenuCol] = useState(null)
-  // Column widths: { [colId]: number } — local only, not persisted
   const [colWidths, setColWidths] = useState({})
+
+  // Persistent document listeners — same pattern as useResizable
+  const colResize = useRef({ active: false, colId: null, startX: 0, startW: 0 })
+  useEffect(() => {
+    function onMove(e) {
+      if (!colResize.current.active) return
+      const newW = Math.max(72, colResize.current.startW + (e.clientX - colResize.current.startX))
+      setColWidths(prev => ({ ...prev, [colResize.current.colId]: newW }))
+    }
+    function onUp() {
+      colResize.current.active = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [])
 
   function updateCell(rowId, colId, val) {
     onChange({ ...table, rows: table.rows.map(r => r.id === rowId ? { ...r, cells: { ...r.cells, [colId]: val } } : r) })
@@ -280,27 +300,12 @@ export function TableGrid({ table, onChange }) {
     onChange({ ...table, columns: cols })
   }
 
-  // Column resize — document mousemove/mouseup (same pattern as panel resize)
   function startColResize(e, colId) {
     e.preventDefault()
     e.stopPropagation()
-    const startX = e.clientX
-    const startW = colWidths[colId] ?? 140
-
-    function onMove(ev) {
-      const newW = Math.max(72, startW + (ev.clientX - startX))
-      setColWidths(prev => ({ ...prev, [colId]: newW }))
-    }
-    function onUp() {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
+    colResize.current = { active: true, colId, startX: e.clientX, startW: colWidths[colId] ?? 140 }
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
   }
 
   return (

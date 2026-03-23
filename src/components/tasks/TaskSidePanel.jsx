@@ -214,7 +214,7 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
       subtasks: task.subtasks ?? [],
       task_notes: task.task_notes ?? [],
     })
-  }, [task])
+  }, [task?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!task) return
