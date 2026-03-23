@@ -68,6 +68,8 @@ export default function TaskNoteEditorPanel({ note, onBack, onSave }) {
   }
 
   return (
+    <>
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onBack} />
     <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-sm bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
@@ -117,5 +119,6 @@ export default function TaskNoteEditorPanel({ note, onBack, onSave }) {
         <EditorContent editor={editor} />
       </div>
     </div>
+    </>
   )
 }

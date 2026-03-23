@@ -235,7 +235,7 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/20 z-30 lg:hidden" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/20 z-30" onClick={onClose} />
 
       <aside className="fixed right-0 top-0 bottom-0 z-40 w-full max-w-sm bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl">
         {/* Header */}
