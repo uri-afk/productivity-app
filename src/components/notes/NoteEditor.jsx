@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { useTheme } from '../../lib/ThemeContext'
+import { useResizable } from '../../hooks/useResizable'
 
 
 // ─── Preset palettes ──────────────────────────────────────────────
@@ -102,6 +103,7 @@ function SavedIndicator({ status }) {
 // ─── Main component ───────────────────────────────────────────────
 export default function NoteEditor({ note, onClose, onUpdate }) {
   const { dark } = useTheme()
+  const { width, startResize } = useResizable({ defaultWidth: 600, minWidth: 360, maxWidth: 1100 })
   const [title, setTitle] = useState(note?.title ?? '')
   const [saveStatus, setSaveStatus] = useState('idle')
   const [visible, setVisible] = useState(false)
@@ -201,13 +203,16 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
       <div
         className={cn(
           'relative flex flex-col h-full',
-          'w-full sm:w-1/2 min-w-0',
           'bg-white dark:bg-slate-900',
           'border-l border-slate-200 dark:border-slate-800 shadow-2xl',
           'transition-transform duration-300 ease-out',
           visible ? 'translate-x-0' : 'translate-x-full'
         )}
+        style={{ width }}
       >
+        {/* Resize handle */}
+        <div onPointerDown={startResize}
+          className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10" />
         {/* ── Top bar: saved indicator + close ── */}
         <div className="flex items-center justify-between px-5 h-11 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <SavedIndicator status={saveStatus} />

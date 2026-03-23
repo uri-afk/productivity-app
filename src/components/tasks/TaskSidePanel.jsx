@@ -4,6 +4,7 @@ import { cn } from '../../lib/cn'
 import TagBadge from '../ui/TagBadge'
 import TaskNoteEditorPanel from './TaskNoteEditorPanel'
 import { defaultTable } from '../table/tableCore'
+import { useResizable } from '../../hooks/useResizable'
 
 const PRIORITIES = ['high', 'medium', 'low']
 const STATUSES = [
@@ -180,6 +181,7 @@ function NotesList({ notes = [], onSelect, onAdd, onRemove }) {
 
 // ── Main side panel ─────────────────────────────────────────────────
 export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
+  const { width, startResize } = useResizable({ defaultWidth: 384, minWidth: 280, maxWidth: 700 })
   const [form, setForm] = useState(null)
   const [newTag, setNewTag] = useState('')
   const [addingTag, setAddingTag] = useState(false)
@@ -248,7 +250,10 @@ export default function TaskSidePanel({ task, onClose, onUpdate, onDelete }) {
     <>
       <div className="fixed inset-0 bg-black/20 z-30" onClick={onClose} />
 
-      <aside className="fixed right-0 top-0 bottom-0 z-40 w-full max-w-sm bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl">
+      <aside className="fixed right-0 top-0 bottom-0 z-40 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl" style={{ width }}>
+        {/* Resize handle */}
+        <div onPointerDown={startResize}
+          className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10" />
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <span className="text-sm font-semibold text-slate-900 dark:text-white">Task details</span>
