@@ -1,4 +1,4 @@
-import { FileText, Trash2 } from 'lucide-react'
+import { FileText, Table2, Trash2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
 function stripHtml(html) {
@@ -6,8 +6,18 @@ function stripHtml(html) {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
+function tablePreview(content) {
+  try {
+    const { columns, rows } = JSON.parse(content)
+    return `${columns.length} columns · ${rows.length} rows`
+  } catch {
+    return 'Table'
+  }
+}
+
 export default function NoteCard({ note, onClick, onDelete }) {
-  const preview = stripHtml(note.content).slice(0, 120)
+  const isTable = note.type === 'table'
+  const preview = isTable ? tablePreview(note.content) : stripHtml(note.content).slice(0, 120)
   const date = note.created_at ? format(parseISO(note.created_at), 'MMM d, yyyy') : ''
 
   return (
@@ -17,7 +27,10 @@ export default function NoteCard({ note, onClick, onDelete }) {
     >
       <div className="flex items-start gap-3">
         <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 mt-0.5">
-          <FileText size={15} className="text-slate-500 dark:text-slate-400" strokeWidth={1.75} />
+          {isTable
+            ? <Table2 size={15} className="text-slate-500 dark:text-slate-400" strokeWidth={1.75} />
+            : <FileText size={15} className="text-slate-500 dark:text-slate-400" strokeWidth={1.75} />
+          }
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{note.title}</p>

@@ -42,7 +42,7 @@ export function useTableData(projectId) {
     let cols = await fetchColumns()
     // Seed default columns if none exist
     if (cols.length === 0) {
-      const toInsert = DEFAULT_COLUMNS.map(c => ({ ...c, project_id: projectId, user_id: user.id }))
+      const toInsert = DEFAULT_COLUMNS.map(c => ({ ...c, project_id: projectId }))
       const { data } = await supabase.from('table_columns').insert(toInsert).select()
       cols = data ?? []
     }
@@ -68,7 +68,7 @@ export function useTableData(projectId) {
   const createColumn = async ({ name, type, options = [] }) => {
     const maxOrder = columns.reduce((m, c) => Math.max(m, c.col_order), -1)
     const { error } = await supabase.from('table_columns').insert({
-      project_id: projectId, user_id: user.id, name, type, col_order: maxOrder + 1, options,
+      project_id: projectId, name, type, col_order: maxOrder + 1, options,
     })
     if (!error) load()
     return { error }
@@ -97,7 +97,7 @@ export function useTableData(projectId) {
     const maxOrder = rows.reduce((m, r) => Math.max(m, r.row_order), -1)
     setRows(prev => [...prev, { id: 'temp-' + Date.now(), project_id: projectId, data: {}, row_order: maxOrder + 1 }])
     const { data, error } = await supabase.from('table_rows').insert({
-      project_id: projectId, user_id: user.id, data: {}, row_order: maxOrder + 1,
+      project_id: projectId, data: {}, row_order: maxOrder + 1,
     }).select().single()
     if (!error && data) setRows(prev => prev.map(r => r.id.startsWith('temp-') ? data : r))
     else load()

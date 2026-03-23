@@ -32,10 +32,10 @@ export function useNotes(projectId) {
     return () => supabase.removeChannel(channel)
   }, [fetch, projectId])
 
-  const createNote = async ({ title }) => {
+  const createNote = async ({ title, type = 'text', content = '' }) => {
     const { data, error } = await supabase
       .from('notes')
-      .insert({ title, content: '', project_id: projectId, user_id: user.id })
+      .insert({ title, type, content, project_id: projectId, user_id: user.id })
       .select()
       .single()
     return { data, error }

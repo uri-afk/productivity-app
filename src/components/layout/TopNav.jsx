@@ -1,12 +1,11 @@
 import { useLocation, matchPath } from 'react-router-dom'
-import { Menu, Plus, List, LayoutGrid, Table2 } from 'lucide-react'
+import { Menu, Plus, List, LayoutGrid } from 'lucide-react'
 import { useProjectsContext } from '../../lib/ProjectsContext'
 import { cn } from '../../lib/cn'
 
 const VIEWS = [
   { id: 'list',  label: 'List',  Icon: List      },
   { id: 'board', label: 'Board', Icon: LayoutGrid },
-  { id: 'table', label: 'Table', Icon: Table2     },
 ]
 
 function usePageTitle() {
