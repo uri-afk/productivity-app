@@ -280,10 +280,11 @@ export function TableGrid({ table, onChange }) {
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
 
-    // Read the actual rendered width from the DOM — not React state.
-    // React state may not match the browser's computed layout on first drag.
+    // Read actual rendered width from the <th> (which has a layout box).
+    // <col> elements have no bounding rect — getBoundingClientRect() returns 0 on them.
+    const thEl = handle.closest('th')
+    const startW = thEl ? thEl.getBoundingClientRect().width : (colWidths[colId] ?? 140)
     const colEl = colGroupRef.current?.children?.[colIndex]
-    const startW = colEl ? colEl.getBoundingClientRect().width : (colWidths[colId] ?? 140)
     const startX = e.clientX
     let finalW = startW
 

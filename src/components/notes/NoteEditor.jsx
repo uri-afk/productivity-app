@@ -126,8 +126,10 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
   const [visible, setVisible] = useState(false)
   const [embeddedTables, setEmbeddedTables] = useState(() => parseNoteContent(note?.content).tables)
   const [tableHeights, setTableHeights] = useState({})
-  const [dragTableIdx, setDragTableIdx] = useState(null)
-  const [dragOverIdx, setDragOverIdx] = useState(null)
+  const [dragTableIdx, setDragTableIdx] = useState(null)   // visual only
+  const [dragOverIdx, setDragOverIdx] = useState(null)     // visual only
+  const isDraggingTableRef = useRef(false)    // synchronous — used in capture handlers
+  const tableDragSrcRef = useRef(null)        // synchronous — used in drop handler
   const titleTimeout = useRef(null)
   const bodyTimeout = useRef(null)
   const savedTimer = useRef(null)
@@ -249,9 +251,10 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
   // ── Table drag-to-reorder ────────────────────────────────────────
   function handleTableDrop(e, toIdx) {
     e.preventDefault()
-    if (dragTableIdx === null || dragTableIdx === toIdx) return
+    const fromIdx = tableDragSrcRef.current  // ref — always current, no stale closure
+    if (fromIdx === null || fromIdx === toIdx) return
     const next = [...embeddedTables]
-    const [moved] = next.splice(dragTableIdx, 1)
+    const [moved] = next.splice(fromIdx, 1)
     next.splice(toIdx, 0, moved)
     setEmbeddedTables(next)
     saveContent(editor?.getHTML() ?? '', next)
@@ -411,10 +414,11 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
           style={{ color: dark ? 'rgb(248 250 252)' : 'rgb(15 23 42)' }}>
 
           {/* Capture-phase handlers block TipTap from receiving table drags.
-              Capture fires outer→inner, so we intercept before ProseMirror sees it. */}
+              Must use isDraggingTableRef (not state) — the ref is set synchronously
+              in onDragStart, before the first dragover fires. */}
           <div
-            onDragOverCapture={e => { if (dragTableIdx !== null) { e.preventDefault(); e.stopPropagation() } }}
-            onDropCapture={e => { if (dragTableIdx !== null) { e.preventDefault(); e.stopPropagation() } }}
+            onDragOverCapture={e => { if (isDraggingTableRef.current) { e.preventDefault(); e.stopPropagation() } }}
+            onDropCapture={e => { if (isDraggingTableRef.current) { e.preventDefault(); e.stopPropagation() } }}
           >
             <EditorContent editor={editor} />
           </div>
@@ -438,12 +442,20 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
                 className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 cursor-grab active:cursor-grabbing select-none"
                 draggable
                 onDragStart={e => {
+                  // Set refs synchronously — state update is async and would miss
+                  // the first dragover/drop events that fire before the re-render.
+                  isDraggingTableRef.current = true
+                  tableDragSrcRef.current = idx
                   setDragTableIdx(idx)
                   e.dataTransfer.effectAllowed = 'move'
-                  // Custom type — avoids TipTap treating this as text to insert
                   e.dataTransfer.setData('application/x-note-table', String(idx))
                 }}
-                onDragEnd={() => { setDragTableIdx(null); setDragOverIdx(null) }}
+                onDragEnd={() => {
+                  isDraggingTableRef.current = false
+                  tableDragSrcRef.current = null
+                  setDragTableIdx(null)
+                  setDragOverIdx(null)
+                }}
               >
                 <GripVertical size={14} className="text-slate-400 shrink-0" />
                 <input
