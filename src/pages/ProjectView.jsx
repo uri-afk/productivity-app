@@ -151,6 +151,7 @@ export default function ProjectView() {
                 tasks={tasks}
                 onToggle={handleToggleTask}
                 onSelect={setSelectedTask}
+                onUpdate={updateTask}
                 onCreate={createTask}
                 activeTag={activeTag}
                 onTagClick={handleTagClick}
