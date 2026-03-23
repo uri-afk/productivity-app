@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import { Check, Plus, X, Trash2, GripVertical } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
@@ -31,16 +31,8 @@ export function normalizeOptions(options) {
 // ── Table defaults ───────────────────────────────────────────────────
 export function defaultTable() {
   return {
-    columns: [
-      { id: 'c0', name: 'Name',     type: 'text',   options: [] },
-      { id: 'c1', name: 'Status',   type: 'select', options: [
-        { id: 'o0', label: 'To Do',       color: '#6b7280' },
-        { id: 'o1', label: 'In Progress', color: '#3b82f6' },
-        { id: 'o2', label: 'Done',        color: '#22c55e' },
-      ]},
-      { id: 'c2', name: 'Due Date', type: 'date', options: [] },
-    ],
-    rows: [{ id: 'r0', cells: { c0: '', c1: '', c2: '' } }],
+    columns: [{ id: 'c0', name: 'Name', type: 'text', options: [] }],
+    rows: [{ id: 'r0', cells: { c0: '' } }],
   }
 }
 
@@ -241,27 +233,7 @@ export function TableGrid({ table, onChange }) {
   const [dragOverColIdx, setDragOverColIdx] = useState(null)
   const [typeMenuCol, setTypeMenuCol] = useState(null)
   const [colWidths, setColWidths] = useState({})
-
-  // Persistent document listeners — same pattern as useResizable
-  const colResize = useRef({ active: false, colId: null, startX: 0, startW: 0 })
-  useEffect(() => {
-    function onMove(e) {
-      if (!colResize.current.active) return
-      const newW = Math.max(72, colResize.current.startW + (e.clientX - colResize.current.startX))
-      setColWidths(prev => ({ ...prev, [colResize.current.colId]: newW }))
-    }
-    function onUp() {
-      colResize.current.active = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-    return () => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-  }, [])
+  const colGroupRef = useRef(null)
 
   function updateCell(rowId, colId, val) {
     onChange({ ...table, rows: table.rows.map(r => r.id === rowId ? { ...r, cells: { ...r.cells, [colId]: val } } : r) })
@@ -300,19 +272,37 @@ export function TableGrid({ table, onChange }) {
     onChange({ ...table, columns: cols })
   }
 
-  function startColResize(e, colId) {
+  function startColResize(e, colId, colIndex) {
     e.preventDefault()
     e.stopPropagation()
-    colResize.current = { active: true, colId, startX: e.clientX, startW: colWidths[colId] ?? 140 }
+    const handle = e.currentTarget
+    const startX = e.clientX
+    const startW = colWidths[colId] ?? 140
+    handle.setPointerCapture(e.pointerId)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
+    let finalW = startW
+    function onMove(ev) {
+      finalW = Math.max(60, startW + (ev.clientX - startX))
+      // Update DOM directly — no React re-render during drag
+      const cols = colGroupRef.current?.children
+      if (cols?.[colIndex]) cols[colIndex].style.width = finalW + 'px'
+    }
+    function onUp() {
+      handle.removeEventListener('pointermove', onMove)
+      handle.removeEventListener('pointerup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      setColWidths(prev => ({ ...prev, [colId]: finalW }))
+    }
+    handle.addEventListener('pointermove', onMove)
+    handle.addEventListener('pointerup', onUp)
   }
 
   return (
     <div className="overflow-x-auto">
       <table className="border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
-        {/* colgroup is the canonical way to drive fixed-layout column widths */}
-        <colgroup>
+        <colgroup ref={colGroupRef}>
           {table.columns.map(col => (
             <col key={col.id} style={{ width: colWidths[col.id] ?? 140 }} />
           ))}
@@ -386,10 +376,10 @@ export function TableGrid({ table, onChange }) {
                     )}
                   </div>
 
-                  {/* Right-edge resize handle — inline flex child, no absolute positioning */}
+                  {/* Right-edge resize handle */}
                   <div
-                    onMouseDown={e => startColResize(e, col.id)}
-                    className="w-1.5 shrink-0 cursor-col-resize hover:bg-blue-500/40 transition-colors"
+                    onPointerDown={e => startColResize(e, col.id, ci)}
+                    className="w-2 shrink-0 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors touch-none"
                   />
                 </div>
               </th>
