@@ -199,7 +199,9 @@ function TaskNoteEditor({ taskId, initialContent, onSave }) {
   }
 
   return (
-    <Section title="Notes" defaultOpen={false}>
+    <div>
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Notes</p>
+
       {/* Mini toolbar */}
       <div className="flex items-center gap-0.5 mb-2 pb-2 border-b border-slate-100 dark:border-slate-800">
         <ToolBtn onClick={() => editor?.chain().focus().toggleBold().run()} active={editor?.isActive('bold')} title="Bold">
@@ -226,7 +228,7 @@ function TaskNoteEditor({ taskId, initialContent, onSave }) {
       >
         <EditorContent editor={editor} />
       </div>
-    </Section>
+    </div>
   )
 }
 
