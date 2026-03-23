@@ -62,15 +62,22 @@ function SelectPopup({ options, value, onChange, onClose }) {
 }
 
 // ── Task notes side panel (wraps NoteEditor) ──────────────────────
-function TaskNotesPanel({ task, allTasks, onClose, onUpdateTask }) {
-  const current = allTasks.find(t => t.id === task.id) ?? task
+// onSaveContent(content) — optional override for subtask notes
+function TaskNotesPanel({ task, allTasks, onClose, onUpdateTask, onSaveContent }) {
+  const current = onSaveContent ? task : (allTasks.find(t => t.id === task.id) ?? task)
   const note = {
     id: current.id,
     title: current.title,
     content: typeof current.task_notes === 'string' ? current.task_notes : '',
   }
   function handleUpdate(id, updates) {
-    if (updates.content !== undefined) onUpdateTask(id, { task_notes: updates.content })
+    if (updates.content !== undefined) {
+      if (onSaveContent) onSaveContent(updates.content)
+      else onUpdateTask(id, { task_notes: updates.content })
+    }
+    if (updates.title !== undefined && !onSaveContent) {
+      onUpdateTask(id, { title: updates.title })
+    }
   }
   return <NoteEditor note={note} onClose={onClose} onUpdate={handleUpdate} />
 }
@@ -86,7 +93,7 @@ function TableHeader() {
       <th className="w-28 px-2 py-2 text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Due Date</th>
       <th className="w-24 px-2 py-2 text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Priority</th>
       <th className="w-36 px-2 py-2 text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Tags</th>
-      <th className="w-8" />
+      <th className="w-20 px-2 py-2 text-left text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Comments</th>
       <th className="w-6" />
     </tr>
   )
@@ -284,13 +291,13 @@ function TaskRow({
       </td>
 
       {/* Notes icon */}
-      <td className="w-8 px-1 py-2">
+      <td className="w-20 px-2 py-2">
         <button onClick={() => onOpenNotes(task)}
           className={cn(
             'p-1 rounded transition-colors',
             task.task_notes
               ? 'text-blue-500 dark:text-blue-400'
-              : 'text-slate-300 dark:text-slate-600 opacity-0 group-hover/row:opacity-100 hover:text-blue-500'
+              : 'text-slate-300 dark:text-slate-600 hover:text-blue-500'
           )}>
           <FileText size={13} />
         </button>
@@ -369,7 +376,7 @@ function TableColgroup() {
       <col style={{ width: 112 }} />
       <col style={{ width: 96 }} />
       <col style={{ width: 144 }} />
-      <col style={{ width: 32 }} />
+      <col style={{ width: 80 }} />
       <col style={{ width: 24 }} />
     </colgroup>
   )
@@ -521,8 +528,8 @@ function TaskSection({
                           expandedSubtasks={new Set()}
                           onToggleExpand={() => {}}
                           onAddSubtask={() => {}}
-                          onOpenNotes={() => {}}
-                          onEnterPressed={() => handleAddSubtask(task)}
+                          onOpenNotes={() => onOpenNotes(sub, (content) => updateSubtask(task.id, sub.id, { task_notes: content }))}
+                          onEnterPressed={null}
                         />
                       ))}
                       {/* Add subtask button row */}
@@ -548,8 +555,8 @@ function TaskSection({
                           expandedSubtasks={new Set()}
                           onToggleExpand={() => {}}
                           onAddSubtask={() => {}}
-                          onOpenNotes={() => {}}
-                          onEnterPressed={() => {}}
+                          onOpenNotes={() => onOpenNotes(sub, (content) => updateSubtask(task.id, sub.id, { task_notes: content }))}
+                          onEnterPressed={null}
                         />
                       ))}
                     </>
@@ -618,6 +625,7 @@ export default function TaskTableView({ tasks, project, onCreateTask, onUpdateTa
   const sections = project?.task_sections ?? [{ id: 'general', name: 'General' }]
   const [collapsedSections, setCollapsedSections] = useState(new Set())
   const [renamingSection, setRenamingSection] = useState(null)
+  // notePanel: { task, onSaveContent? } — onSaveContent is set for subtask notes
   const [notePanel, setNotePanel] = useState(null)
 
   function toggleSection(id) {
@@ -664,7 +672,7 @@ export default function TaskTableView({ tasks, project, onCreateTask, onUpdateTa
           onCreate={onCreateTask}
           onUpdate={onUpdateTask}
           onDeleteTask={onDeleteTask}
-          onOpenNotes={setNotePanel}
+          onOpenNotes={(task, onSaveContent) => setNotePanel({ task, onSaveContent })}
           isFirst={idx === 0}
         />
       ))}
@@ -677,10 +685,11 @@ export default function TaskTableView({ tasks, project, onCreateTask, onUpdateTa
 
       {notePanel && (
         <TaskNotesPanel
-          task={notePanel}
+          task={notePanel.task}
           allTasks={tasks}
           onClose={() => setNotePanel(null)}
           onUpdateTask={onUpdateTask}
+          onSaveContent={notePanel.onSaveContent}
         />
       )}
     </div>

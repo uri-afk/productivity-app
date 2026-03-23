@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { useEditor, EditorContent, Extension } from '@tiptap/react'
+import { useEffect, useRef, useState } from 'react'
+import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Underline } from '@tiptap/extension-underline'
 import { TextStyle, Color, FontSize as TiptapFontSize } from '@tiptap/extension-text-style'
 import {
   X, Bold, Italic, Underline as UnderlineIcon,
-  List, ListOrdered, Minus, Check, ChevronDown,
+  List, ListOrdered, Minus, Check, ChevronDown, LayoutGrid, Trash2,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { useTheme } from '../../lib/ThemeContext'
 import { useResizable } from '../../hooks/useResizable'
+import { TableGrid, defaultTable } from '../table/tableCore'
 
 
 // ─── Preset palettes ──────────────────────────────────────────────
@@ -21,7 +22,7 @@ const FONT_SIZES = [
 ]
 
 const COLORS = [
-  { label: 'Default', value: null,      swatch: null      }, // renders as ⊘
+  { label: 'Default', value: null,      swatch: null      },
   { label: 'White',   value: '#ffffff', swatch: '#ffffff' },
   { label: 'Gray',    value: '#6b7280', swatch: '#6b7280' },
   { label: 'Red',     value: '#ef4444', swatch: '#ef4444' },
@@ -100,6 +101,23 @@ function SavedIndicator({ status }) {
   )
 }
 
+// ─── Content serialization ────────────────────────────────────────
+// Content is stored as JSON { html, tables } or as raw HTML (legacy).
+function parseNoteContent(raw) {
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed.html === 'string') {
+      return { html: parsed.html, tables: Array.isArray(parsed.tables) ? parsed.tables : [] }
+    }
+  } catch {}
+  return { html: raw ?? '', tables: [] }
+}
+
+function serializeNoteContent(html, tables) {
+  if (!tables.length) return html  // legacy-compatible: no tables = plain HTML
+  return JSON.stringify({ html, tables })
+}
+
 // ─── Main component ───────────────────────────────────────────────
 export default function NoteEditor({ note, onClose, onUpdate }) {
   const { dark } = useTheme()
@@ -107,16 +125,17 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
   const [title, setTitle] = useState(note?.title ?? '')
   const [saveStatus, setSaveStatus] = useState('idle')
   const [visible, setVisible] = useState(false)
+  const [embeddedTables, setEmbeddedTables] = useState(() => parseNoteContent(note?.content).tables)
   const titleTimeout = useRef(null)
   const bodyTimeout = useRef(null)
   const savedTimer = useRef(null)
   const editorWrapperRef = useRef(null)
+  // Ref so TipTap's debounced onUpdate always sees the latest tables
+  const embeddedTablesRef = useRef(embeddedTables)
+  useEffect(() => { embeddedTablesRef.current = embeddedTables }, [embeddedTables])
 
   function focusEditor() {
-    // Defer past the current keydown event so the browser doesn't reset focus
-    setTimeout(() => {
-      editor?.view?.dom?.focus()
-    }, 0)
+    setTimeout(() => { editor?.view?.dom?.focus() }, 0)
   }
 
   // Slide-in animation
@@ -131,6 +150,11 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
     savedTimer.current = setTimeout(() => setSaveStatus('idle'), 2000)
   }
 
+  function saveContent(html, tables) {
+    onUpdate(note.id, { content: serializeNoteContent(html, tables) })
+    markSaved()
+  }
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -139,7 +163,7 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
       Color,
       TiptapFontSize,
     ],
-    content: note?.content ?? '',
+    content: parseNoteContent(note?.content).html,
     editorProps: {
       attributes: {
         class: 'outline-none min-h-64 prose prose-sm max-w-none',
@@ -149,8 +173,7 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
       setSaveStatus('saving')
       clearTimeout(bodyTimeout.current)
       bodyTimeout.current = setTimeout(() => {
-        onUpdate(note.id, { content: editor.getHTML() })
-        markSaved()
+        saveContent(editor.getHTML(), embeddedTablesRef.current)
       }, 700)
     },
   })
@@ -158,8 +181,10 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
   // Sync when switching notes
   useEffect(() => {
     if (!note) return
+    const { html, tables } = parseNoteContent(note.content)
     setTitle(note.title)
-    editor?.commands.setContent(note.content ?? '')
+    editor?.commands.setContent(html)
+    setEmbeddedTables(tables)
     setSaveStatus('idle')
   }, [note?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -183,9 +208,37 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
     }, 700)
   }
 
+  function insertTable() {
+    const newTable = { id: `t_${Date.now()}`, name: 'Table', data: defaultTable() }
+    const next = [...embeddedTables, newTable]
+    setEmbeddedTables(next)
+    saveContent(editor?.getHTML() ?? '', next)
+  }
+
+  function updateTable(tableId, nextData) {
+    const next = embeddedTables.map(t => t.id === tableId ? { ...t, data: nextData } : t)
+    setEmbeddedTables(next)
+    setSaveStatus('saving')
+    clearTimeout(bodyTimeout.current)
+    bodyTimeout.current = setTimeout(() => {
+      saveContent(editor?.getHTML() ?? '', next)
+    }, 700)
+  }
+
+  function deleteTable(tableId) {
+    const next = embeddedTables.filter(t => t.id !== tableId)
+    setEmbeddedTables(next)
+    saveContent(editor?.getHTML() ?? '', next)
+  }
+
+  function updateTableName(tableId, name) {
+    const next = embeddedTables.map(t => t.id === tableId ? { ...t, name } : t)
+    setEmbeddedTables(next)
+    saveContent(editor?.getHTML() ?? '', next)
+  }
+
   if (!note) return null
 
-  // Active color for indicator dot
   const activeColor = editor?.getAttributes('textStyle')?.color ?? null
 
   return (
@@ -213,7 +266,8 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
         {/* Resize handle */}
         <div onMouseDown={startResize}
           className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10" />
-        {/* ── Top bar: saved indicator + close ── */}
+
+        {/* ── Top bar ── */}
         <div className="flex items-center justify-between px-5 h-11 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <SavedIndicator status={saveStatus} />
           <button
@@ -238,7 +292,6 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
         {/* ── Formatting toolbar ── */}
         <div className="flex items-center flex-wrap gap-0.5 px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 shrink-0">
 
-          {/* Bold / Italic / Underline */}
           <ToolBtn onClick={() => editor?.chain().focus().toggleBold().run()} active={editor?.isActive('bold')} title="Bold (⌘B)">
             <Bold size={14} />
           </ToolBtn>
@@ -251,7 +304,6 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
 
           <Divider />
 
-          {/* Headings */}
           {[1, 2, 3].map(level => (
             <ToolBtn
               key={level}
@@ -265,7 +317,6 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
 
           <Divider />
 
-          {/* Font size */}
           <Dropdown label="Aa">
             {close => FONT_SIZES.map(({ label, value }) => (
               <button
@@ -284,15 +335,11 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
             ))}
           </Dropdown>
 
-          {/* Text color */}
           <Dropdown
             label={
               <span className="flex items-center gap-1">
                 <span className="font-bold text-xs" style={{ color: activeColor ?? 'currentColor' }}>A</span>
-                <span
-                  className="w-3 h-0.5 rounded-full"
-                  style={{ backgroundColor: activeColor ?? '#6b7280' }}
-                />
+                <span className="w-3 h-0.5 rounded-full" style={{ backgroundColor: activeColor ?? '#6b7280' }} />
               </span>
             }
           >
@@ -315,7 +362,6 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
                     )}
                     style={swatch ? { backgroundColor: swatch } : {}}
                   >
-                    {/* Default = reset icon */}
                     {!swatch && <span className="text-slate-400 text-xs leading-none">↺</span>}
                   </button>
                 ))}
@@ -325,7 +371,6 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
 
           <Divider />
 
-          {/* Lists */}
           <ToolBtn onClick={() => editor?.chain().focus().toggleBulletList().run()} active={editor?.isActive('bulletList')} title="Bullet list">
             <List size={14} />
           </ToolBtn>
@@ -335,9 +380,14 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
 
           <Divider />
 
-          {/* Divider line */}
           <ToolBtn onClick={() => editor?.chain().focus().setHorizontalRule().run()} title="Divider line">
             <Minus size={14} />
+          </ToolBtn>
+
+          <Divider />
+
+          <ToolBtn onClick={insertTable} title="Insert table">
+            <LayoutGrid size={14} />
           </ToolBtn>
         </div>
 
@@ -348,6 +398,32 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
           style={{ color: dark ? 'rgb(248 250 252)' : 'rgb(15 23 42)' }}
         >
           <EditorContent editor={editor} />
+
+          {/* Embedded tables */}
+          {embeddedTables.map(t => (
+            <div key={t.id} className="mt-6 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              {/* Table header bar */}
+              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                <input
+                  value={t.name}
+                  onChange={e => updateTableName(t.id, e.target.value)}
+                  className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-transparent outline-none min-w-0"
+                  placeholder="Table name…"
+                />
+                <button
+                  onClick={() => deleteTable(t.id)}
+                  className="p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0"
+                  title="Delete table"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+              <TableGrid
+                table={t.data}
+                onChange={nextData => updateTable(t.id, nextData)}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </div>
