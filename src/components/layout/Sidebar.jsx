@@ -156,7 +156,7 @@ function ProjectItem({ project, onRename, onDelete }) {
   )
 }
 
-export default function Sidebar({ open, onClose }) {
+export default function Sidebar({ open, onClose, onSearchOpen }) {
   const { user } = useAuth()
   const { dark, toggle } = useTheme()
   const { projects, updateProject, deleteProject } = useProjectsContext()
@@ -208,7 +208,13 @@ export default function Sidebar({ open, onClose }) {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
           <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" end />
-          <NavItem to="/search" icon={Search} label="Search" />
+          <button
+            onClick={() => { onSearchOpen?.(); onClose() }}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full text-left text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
+          >
+            <Search size={16} strokeWidth={1.75} />
+            Search
+          </button>
 
           <div className="pt-5">
             <div className="flex items-center gap-1.5 px-3 mb-1.5">

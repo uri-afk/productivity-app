@@ -143,7 +143,7 @@ function TaskRow({
   }
 
   return (
-    <tr className={cn(
+    <tr data-task-id={id} className={cn(
       'group/row border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/20',
       done && 'opacity-50'
     )}>
@@ -621,10 +621,24 @@ function TaskSection({
 }
 
 // ── Main TaskTableView ────────────────────────────────────────────
-export default function TaskTableView({ tasks, project, onCreateTask, onUpdateTask, onDeleteTask, onUpdateProject }) {
+export default function TaskTableView({ tasks, project, onCreateTask, onUpdateTask, onDeleteTask, onUpdateProject, highlightTaskId }) {
   const sections = project?.task_sections ?? [{ id: 'general', name: 'General' }]
   const [collapsedSections, setCollapsedSections] = useState(new Set())
   const [renamingSection, setRenamingSection] = useState(null)
+
+  // Scroll to and briefly flash the highlighted task
+  useEffect(() => {
+    if (!highlightTaskId) return
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-task-id="${highlightTaskId}"]`)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.style.transition = 'background-color 0.3s'
+      el.style.backgroundColor = 'rgba(59,130,246,0.15)'
+      setTimeout(() => { el.style.backgroundColor = '' }, 1500)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [highlightTaskId])
   // notePanel: { task, onSaveContent? } — onSaveContent is set for subtask notes
   const [notePanel, setNotePanel] = useState(null)
 

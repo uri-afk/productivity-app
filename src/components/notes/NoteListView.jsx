@@ -232,13 +232,20 @@ function NoteRow({ note, onSelect, onDelete, onOpenMovePopup, dragNoteIdRef, isD
 }
 
 // ── Main NoteListView ─────────────────────────────────────────────
-export default function NoteListView({ notes, project, onCreateNote, onUpdateNote, onDeleteNote, onUpdateProject }) {
+export default function NoteListView({ notes, project, onCreateNote, onUpdateNote, onDeleteNote, onUpdateProject, initialOpenNoteId }) {
   const { projects } = useProjectsContext() ?? { projects: [] }
   const sections = project?.note_sections ?? [{ id: 'general', name: 'General' }]
   const [collapsedSections, setCollapsedSections] = useState(new Set())
   const [renamingSection, setRenamingSection] = useState(null)
   const [selectedNote, setSelectedNote] = useState(null)
   const [movePopup, setMovePopup] = useState(null) // { noteId, anchor }
+
+  // Auto-open note from navigation state
+  useEffect(() => {
+    if (!initialOpenNoteId || notes.length === 0) return
+    const note = notes.find(n => n.id === initialOpenNoteId)
+    if (note) setSelectedNote(note)
+  }, [initialOpenNoteId, notes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Desktop = wide enough to show the note list + inline editor side-by-side
   const [isDesktop, setIsDesktop] = useState(() =>

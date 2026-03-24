@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useParams, useOutletContext, useNavigate } from 'react-router-dom'
+import { useEffect, useState, useRef } from 'react'
+import { useParams, useOutletContext, useNavigate, useLocation } from 'react-router-dom'
 import { useResizable } from '../hooks/useResizable'
 import { useTasks } from '../hooks/useTasks'
 import { useNotes } from '../hooks/useNotes'
@@ -16,9 +16,11 @@ const TABS = [
 export default function ProjectView() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { activeTab, setActiveTab, registerNewHandler } = useOutletContext()
   const { projects, updateProject } = useProjectsContext()
   const project = projects.find(p => p.id === id)
+  const navStateHandled = useRef(false)
 
   const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask } = useTasks(id)
   const { notes, loading: notesLoading, createNote, updateNote, deleteNote } = useNotes(id)
@@ -40,6 +42,17 @@ export default function ProjectView() {
   useEffect(() => {
     if (!project && projects.length > 0) navigate('/dashboard')
   }, [project, projects.length, navigate])
+
+  // Apply navigation state from dashboard / search (switch tab, highlight task or open note)
+  useEffect(() => {
+    if (navStateHandled.current) return
+    const state = location.state
+    if (!state) return
+    navStateHandled.current = true
+    if (state.tab) setActiveTab(state.tab)
+    // Clear state so back-navigation doesn't re-apply it
+    window.history.replaceState({}, '')
+  }, [location.state, setActiveTab])
 
   if (!project) return null
 
@@ -93,6 +106,7 @@ export default function ProjectView() {
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
             onUpdateProject={updateProject}
+            highlightTaskId={location.state?.highlightTaskId}
           />
         )
       )}
@@ -107,6 +121,7 @@ export default function ProjectView() {
             onUpdateNote={updateNote}
             onDeleteNote={deleteNote}
             onUpdateProject={updateProject}
+            initialOpenNoteId={location.state?.openNoteId}
           />
         )
       )}
