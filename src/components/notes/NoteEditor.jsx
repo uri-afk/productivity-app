@@ -8,7 +8,7 @@ import { TextStyle, Color, FontSize as TiptapFontSize } from '@tiptap/extension-
 import {
   X, Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered, Minus, Check, ChevronDown, LayoutGrid, Trash2, GripVertical,
-  Copy, Scissors, ClipboardPaste, Paperclip, Camera,
+  Copy, Scissors, ClipboardPaste, Paperclip, Camera, Mic, Square,
   FileText, File, FileSpreadsheet, FileArchive, ImageIcon,
   Loader2,
 } from 'lucide-react'
@@ -213,6 +213,44 @@ function FileNodeView({ node, deleteNode }) {
           onClick={e => { e.stopPropagation(); deleteNode() }}
           className="opacity-0 group-hover/file:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-all shrink-0"
           title="Remove attachment"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </NodeViewWrapper>
+  )
+}
+
+// ─── AudioNodeView ────────────────────────────────────────────────
+function AudioNodeView({ node, deleteNode }) {
+  const { path, filename } = node.attrs
+  const [signedUrl, setSignedUrl] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getSignedUrl(path).then(url => { if (!cancelled) setSignedUrl(url) })
+    return () => { cancelled = true }
+  }, [path])
+
+  return (
+    <NodeViewWrapper className="my-2" contentEditable={false}>
+      <div
+        className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 group/audio hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+        data-drag-handle
+      >
+        <Mic size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
+        <div className="flex-1 min-w-0">
+          {signedUrl
+            ? <audio controls src={signedUrl} className="w-full" style={{ height: 32 }} />
+            : <div className="h-8 flex items-center gap-1.5 text-xs text-slate-400"><Loader2 size={12} className="animate-spin" /> Loading…</div>
+          }
+          <p className="text-xs text-slate-400 mt-0.5 truncate">{filename}</p>
+        </div>
+        <button
+          onMouseDown={e => e.preventDefault()}
+          onClick={e => { e.stopPropagation(); deleteNode() }}
+          className="opacity-0 group-hover/audio:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-all shrink-0"
+          title="Remove voice memo"
         >
           <Trash2 size={12} />
         </button>
@@ -499,6 +537,43 @@ function TableNodeView({ node, updateAttributes, deleteNode }) {
   )
 }
 
+// ─── TipTap: EmbeddedAudio ────────────────────────────────────────
+const EmbeddedAudio = Node.create({
+  name: 'embeddedAudio',
+  group: 'block',
+  atom: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      path:     { default: '' },
+      filename: { default: '' },
+    }
+  },
+
+  parseHTML() {
+    return [{
+      tag: 'div[data-type="embedded-audio"]',
+      getAttrs: el => ({
+        path:     el.getAttribute('data-path') ?? '',
+        filename: el.getAttribute('data-filename') ?? '',
+      }),
+    }]
+  },
+
+  renderHTML({ node }) {
+    return ['div', mergeAttributes({
+      'data-type':     'embedded-audio',
+      'data-path':     node.attrs.path,
+      'data-filename': node.attrs.filename,
+    })]
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(AudioNodeView)
+  },
+})
+
 // ─── TipTap: EmbeddedTable ─────────────────────────────────────────
 const EmbeddedTable = Node.create({
   name: 'embeddedTable',
@@ -551,10 +626,21 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
   const titleTimeout = useRef(null)
   const bodyTimeout = useRef(null)
   const savedTimer = useRef(null)
-  const fileInputRef = useRef(null)   // all-files picker
-  const imageInputRef = useRef(null)  // images-only picker (camera button)
+  const fileInputRef = useRef(null)
+  const imageInputRef = useRef(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const mediaRecorderRef = useRef(null)
+  const chunksRef = useRef([])
 
   useEffect(() => tableClipboard.subscribe(setClipboardHasTable), [])
+
+  // Recording timer
+  useEffect(() => {
+    if (!isRecording) return
+    const id = setInterval(() => setRecordingSeconds(s => s + 1), 1000)
+    return () => clearInterval(id)
+  }, [isRecording])
 
   function focusEditor() {
     setTimeout(() => { editor?.view?.dom?.focus() }, 0)
@@ -577,7 +663,7 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
   }
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline, TextStyle, Color, TiptapFontSize, EmbeddedTable, EmbeddedImage, EmbeddedFile],
+    extensions: [StarterKit, Underline, TextStyle, Color, TiptapFontSize, EmbeddedTable, EmbeddedImage, EmbeddedFile, EmbeddedAudio],
     content: migrateContent(note?.content),
     editorProps: {
       attributes: { class: 'outline-none min-h-64 prose max-w-none note-editor-prose' },
@@ -631,6 +717,48 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
       type: 'embeddedTable',
       attrs: { id: `t_${Date.now()}`, name: t.name, tableData: t.data },
     })
+  }
+
+  // ── Voice recording ───────────────────────────────────────────────
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg']
+        .find(t => MediaRecorder.isTypeSupported(t)) ?? ''
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
+      chunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const mimeUsed = mr.mimeType || 'audio/webm'
+        const ext = mimeUsed.includes('mp4') ? 'm4a' : mimeUsed.includes('ogg') ? 'ogg' : 'webm'
+        const blob = new Blob(chunksRef.current, { type: mimeUsed })
+        const file = new File([blob], `voice-memo-${Date.now()}.${ext}`, { type: mimeUsed })
+        setUploadCount(c => c + 1)
+        try {
+          const { path } = await uploadNoteFile(file, user.id, note.id)
+          editor?.commands.insertContent({ type: 'embeddedAudio', attrs: { path, filename: file.name } })
+          saveContent(editor.getHTML())
+        } catch (err) {
+          setUploadError(err.message ?? 'Voice upload failed')
+          setTimeout(() => setUploadError(null), 12000)
+        } finally {
+          setUploadCount(c => c - 1)
+        }
+      }
+      mr.start(250)
+      mediaRecorderRef.current = mr
+      setIsRecording(true)
+      setRecordingSeconds(0)
+    } catch {
+      setUploadError('Microphone access denied — allow microphone access in browser settings.')
+      setTimeout(() => setUploadError(null), 8000)
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop()
+    setIsRecording(false)
   }
 
   // ── Upload ────────────────────────────────────────────────────────
@@ -810,6 +938,28 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
         >
           <Camera size={14} />
         </ToolBtn>
+
+        {isRecording ? (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+            <span className="text-xs font-mono text-red-600 dark:text-red-400 tabular-nums">
+              {String(Math.floor(recordingSeconds / 60)).padStart(2,'0')}:{String(recordingSeconds % 60).padStart(2,'0')}
+            </span>
+            <button
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={stopRecording}
+              className="p-0.5 text-red-500 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+              title="Stop recording"
+            >
+              <Square size={12} fill="currentColor" />
+            </button>
+          </div>
+        ) : (
+          <ToolBtn onClick={startRecording} title="Record voice memo" disabled={uploadCount > 0}>
+            <Mic size={14} />
+          </ToolBtn>
+        )}
 
         {/* Hidden file inputs */}
         <input
