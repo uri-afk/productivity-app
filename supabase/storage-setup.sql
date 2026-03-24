@@ -1,12 +1,12 @@
--- Run this in the Supabase SQL editor (or Dashboard → Storage → New bucket manually).
--- Creates the note-attachments bucket and scopes access to each user's own folder.
+-- Run this once in Supabase Dashboard → SQL Editor.
+-- Creates a PRIVATE bucket (no public CDN) and scopes all access to each user's own files.
 
--- 1. Create public bucket (files are served via public CDN URL)
+-- 1. Create private bucket
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('note-attachments', 'note-attachments', true)
+VALUES ('note-attachments', 'note-attachments', false)
 ON CONFLICT (id) DO NOTHING;
 
--- 2. Upload: users can only upload into their own folder (first path segment = uid)
+-- 2. Upload: users can only write into their own folder  ({uid}/...)
 CREATE POLICY "Users can upload own attachments"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
@@ -14,7 +14,7 @@ WITH CHECK (
   (storage.foldername(name))[1] = auth.uid()::text
 );
 
--- 3. Read: users can only read their own files via the API (public URLs bypass this)
+-- 3. Read: users can only read their own files (signed URLs are generated server-side)
 CREATE POLICY "Users can read own attachments"
 ON storage.objects FOR SELECT TO authenticated
 USING (

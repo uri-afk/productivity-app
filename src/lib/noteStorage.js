@@ -2,25 +2,18 @@ import { supabase } from './supabase'
 
 const BUCKET = 'note-attachments'
 
-/**
- * Attempt to create the storage bucket if it doesn't exist.
- * Silently succeeds if the bucket already exists.
- * Throws a structured error if creation fails.
- */
 async function ensureBucket() {
-  // Try to list a dummy path — if we get anything other than "Bucket not found"
-  // the bucket already exists and is accessible.
   const { error: listError } = await supabase.storage.from(BUCKET).list('__probe__', { limit: 1 })
-  if (!listError || listError.message !== 'Bucket not found') return // exists
+  if (!listError || listError.message !== 'Bucket not found') return
 
-  // Bucket doesn't exist — try to create it (requires appropriate Supabase permissions)
-  const { error: createError } = await supabase.storage.createBucket(BUCKET, { public: true })
+  // Bucket missing — try to create it as private
+  const { error: createError } = await supabase.storage.createBucket(BUCKET, { public: false })
   if (createError && !createError.message?.includes('already exists')) {
     const err = new Error(
       `Storage bucket "${BUCKET}" does not exist and could not be created automatically.\n\n` +
       `Please set it up in your Supabase project:\n` +
       `1. Go to Supabase Dashboard → Storage → New bucket\n` +
-      `2. Name it "note-attachments" and enable "Public bucket"\n` +
+      `2. Name it "note-attachments", leave Public bucket OFF → Create\n` +
       `3. Then run the SQL in supabase/storage-setup.sql to add upload policies\n\n` +
       `Original error: ${createError.message}`
     )
@@ -30,8 +23,8 @@ async function ensureBucket() {
 }
 
 /**
- * Upload a file to Supabase Storage under the user's folder.
- * Returns { url, path } on success. Throws a descriptive error on failure.
+ * Upload a file. Returns { path } — the stable storage path.
+ * Callers use getSignedUrl(path) to get a display URL.
  */
 export async function uploadNoteFile(file, userId, noteId) {
   await ensureBucket()
@@ -49,16 +42,25 @@ export async function uploadNoteFile(file, userId, noteId) {
     if (msg.includes('row-level security') || msg.includes('policy') || msg.includes('Unauthorized') || msg.includes('403')) {
       hint = '\n\nFix: run the SQL in supabase/storage-setup.sql in your Supabase SQL Editor to add upload policies.'
     } else if (msg.includes('Bucket not found')) {
-      hint = '\n\nFix: create a public bucket named "note-attachments" in Supabase Dashboard → Storage.'
+      hint = '\n\nFix: create a private bucket named "note-attachments" in Supabase Dashboard → Storage.'
     }
     const err = new Error(`Upload failed: ${msg}${hint}`)
     err.supabaseError = error
     throw err
   }
 
-  const { data: { publicUrl } } = supabase.storage
-    .from(BUCKET)
-    .getPublicUrl(path)
+  return { path }
+}
 
-  return { url: publicUrl, path }
+/**
+ * Get a 1-hour signed URL for a stored file path.
+ * Returns null on error (file missing or no permission).
+ */
+export async function getSignedUrl(path, expiresIn = 3600) {
+  if (!path) return null
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(path, expiresIn)
+  if (error) { console.warn('getSignedUrl failed:', error.message); return null }
+  return data.signedUrl
 }

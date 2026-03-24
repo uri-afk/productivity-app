@@ -18,7 +18,8 @@ import { useAuth } from '../../lib/AuthContext'
 import { useResizable } from '../../hooks/useResizable'
 import { TableGrid, defaultTable } from '../table/tableCore'
 import { tableClipboard } from '../../lib/tableClipboard'
-import { uploadNoteFile } from '../../lib/noteStorage'
+import { uploadNoteFile, getSignedUrl } from '../../lib/noteStorage'
+import { supabase } from '../../lib/supabase'
 
 
 // ─── Preset palettes ──────────────────────────────────────────────
@@ -106,19 +107,35 @@ function Lightbox({ url, filename, onClose }) {
 
 // ─── ImageNodeView ────────────────────────────────────────────────
 function ImageNodeView({ node, updateAttributes, deleteNode }) {
-  const { url, filename, size = 'medium' } = node.attrs
+  const { path, filename, size = 'medium' } = node.attrs
+  const [signedUrl, setSignedUrl] = useState(null)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    getSignedUrl(path).then(url => { if (!cancelled) setSignedUrl(url) })
+    return () => { cancelled = true }
+  }, [path])
 
   return (
     <NodeViewWrapper className="my-3" contentEditable={false}>
       <div className="relative inline-block group/img max-w-full" data-drag-handle>
-        <img
-          src={url}
-          alt={filename || 'Image'}
-          style={{ width: IMAGE_SIZES[size]?.width ?? 400, maxWidth: '100%', display: 'block', borderRadius: 8, cursor: 'zoom-in' }}
-          onClick={() => setLightboxOpen(true)}
-          draggable={false}
-        />
+        {signedUrl ? (
+          <img
+            src={signedUrl}
+            alt={filename || 'Image'}
+            style={{ width: IMAGE_SIZES[size]?.width ?? 400, maxWidth: '100%', display: 'block', borderRadius: 8, cursor: 'zoom-in' }}
+            onClick={() => setLightboxOpen(true)}
+            draggable={false}
+          />
+        ) : (
+          <div
+            style={{ width: IMAGE_SIZES[size]?.width ?? 400, maxWidth: '100%', height: 80 }}
+            className="rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
+          >
+            <Loader2 size={16} className="animate-spin text-slate-400" />
+          </div>
+        )}
 
         {/* Size + delete controls */}
         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity">
@@ -147,14 +164,21 @@ function ImageNodeView({ node, updateAttributes, deleteNode }) {
         </div>
       </div>
 
-      {lightboxOpen && <Lightbox url={url} filename={filename} onClose={() => setLightboxOpen(false)} />}
+      {lightboxOpen && signedUrl && <Lightbox url={signedUrl} filename={filename} onClose={() => setLightboxOpen(false)} />}
     </NodeViewWrapper>
   )
 }
 
 // ─── FileNodeView ─────────────────────────────────────────────────
 function FileNodeView({ node, deleteNode }) {
-  const { url, filename, mimetype, filesize } = node.attrs
+  const { path, filename, mimetype, filesize } = node.attrs
+  const [signedUrl, setSignedUrl] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getSignedUrl(path).then(url => { if (!cancelled) setSignedUrl(url) })
+    return () => { cancelled = true }
+  }, [path])
 
   return (
     <NodeViewWrapper className="my-2" contentEditable={false}>
@@ -165,15 +189,22 @@ function FileNodeView({ node, deleteNode }) {
         <div className="text-slate-400 dark:text-slate-500 shrink-0">
           <FileTypeIcon mimetype={mimetype} />
         </div>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="flex-1 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate min-w-0"
-        >
-          {filename}
-        </a>
+        {signedUrl ? (
+          <a
+            href={signedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="flex-1 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate min-w-0"
+          >
+            {filename}
+          </a>
+        ) : (
+          <span className="flex-1 text-sm text-slate-400 truncate min-w-0 flex items-center gap-1.5">
+            <Loader2 size={12} className="animate-spin shrink-0" />
+            {filename}
+          </span>
+        )}
         {filesize > 0 && (
           <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{formatFileSize(filesize)}</span>
         )}
@@ -199,7 +230,7 @@ const EmbeddedImage = Node.create({
 
   addAttributes() {
     return {
-      url:      { default: '' },
+      path:     { default: '' },
       filename: { default: '' },
       size:     { default: 'medium' },
     }
@@ -209,7 +240,7 @@ const EmbeddedImage = Node.create({
     return [{
       tag: 'div[data-type="embedded-image"]',
       getAttrs: el => ({
-        url:      el.getAttribute('data-url') ?? '',
+        path:     el.getAttribute('data-path') ?? '',
         filename: el.getAttribute('data-filename') ?? '',
         size:     el.getAttribute('data-size') ?? 'medium',
       }),
@@ -219,7 +250,7 @@ const EmbeddedImage = Node.create({
   renderHTML({ node }) {
     return ['div', mergeAttributes({
       'data-type':     'embedded-image',
-      'data-url':      node.attrs.url,
+      'data-path':     node.attrs.path,
       'data-filename': node.attrs.filename,
       'data-size':     node.attrs.size,
     })]
@@ -239,7 +270,7 @@ const EmbeddedFile = Node.create({
 
   addAttributes() {
     return {
-      url:      { default: '' },
+      path:     { default: '' },
       filename: { default: '' },
       mimetype: { default: '' },
       filesize: { default: 0 },
@@ -250,7 +281,7 @@ const EmbeddedFile = Node.create({
     return [{
       tag: 'div[data-type="embedded-file"]',
       getAttrs: el => ({
-        url:      el.getAttribute('data-url') ?? '',
+        path:     el.getAttribute('data-path') ?? '',
         filename: el.getAttribute('data-filename') ?? '',
         mimetype: el.getAttribute('data-mimetype') ?? '',
         filesize: Number(el.getAttribute('data-filesize') ?? 0),
@@ -261,7 +292,7 @@ const EmbeddedFile = Node.create({
   renderHTML({ node }) {
     return ['div', mergeAttributes({
       'data-type':     'embedded-file',
-      'data-url':      node.attrs.url,
+      'data-path':     node.attrs.path,
       'data-filename': node.attrs.filename,
       'data-mimetype': node.attrs.mimetype,
       'data-filesize': String(node.attrs.filesize),
@@ -611,18 +642,18 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
 
     for (const file of files) {
       try {
-        const { url } = await uploadNoteFile(file, user.id, note.id)
+        const { path } = await uploadNoteFile(file, user.id, note.id)
         const isImage = file.type.startsWith('image/')
 
         if (isImage) {
           editor?.commands.insertContent({
             type: 'embeddedImage',
-            attrs: { url, filename: file.name, size: 'medium' },
+            attrs: { path, filename: file.name, size: 'medium' },
           })
         } else {
           editor?.commands.insertContent({
             type: 'embeddedFile',
-            attrs: { url, filename: file.name, mimetype: file.type, filesize: file.size },
+            attrs: { path, filename: file.name, mimetype: file.type, filesize: file.size },
           })
         }
 
