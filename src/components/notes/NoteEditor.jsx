@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useEditor, EditorContent, ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
 import { Node, mergeAttributes } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
@@ -7,13 +8,17 @@ import { TextStyle, Color, FontSize as TiptapFontSize } from '@tiptap/extension-
 import {
   X, Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered, Minus, Check, ChevronDown, LayoutGrid, Trash2, GripVertical,
-  Copy, Scissors, ClipboardPaste,
+  Copy, Scissors, ClipboardPaste, Paperclip, Camera,
+  FileText, File, FileSpreadsheet, FileArchive, ImageIcon,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { useTheme } from '../../lib/ThemeContext'
+import { useAuth } from '../../lib/AuthContext'
 import { useResizable } from '../../hooks/useResizable'
 import { TableGrid, defaultTable } from '../table/tableCore'
 import { tableClipboard } from '../../lib/tableClipboard'
+import { uploadNoteFile } from '../../lib/noteStorage'
 
 
 // ─── Preset palettes ──────────────────────────────────────────────
@@ -36,6 +41,237 @@ const COLORS = [
   { label: 'Purple',  value: '#a855f7', swatch: '#a855f7' },
   { label: 'Pink',    value: '#ec4899', swatch: '#ec4899' },
 ]
+
+const IMAGE_SIZES = {
+  small:  { width: 200,    label: 'S' },
+  medium: { width: 400,    label: 'M' },
+  large:  { width: '100%', label: 'L' },
+}
+
+// ─── File type icon ───────────────────────────────────────────────
+function FileTypeIcon({ mimetype, size = 14 }) {
+  if (!mimetype) return <File size={size} />
+  if (mimetype.startsWith('image/')) return <ImageIcon size={size} />
+  if (mimetype === 'application/pdf') return <FileText size={size} />
+  if (mimetype.includes('spreadsheet') || mimetype.includes('excel') || mimetype === 'text/csv')
+    return <FileSpreadsheet size={size} />
+  if (mimetype.includes('zip') || mimetype.includes('tar') || mimetype.includes('rar') || mimetype.includes('7z'))
+    return <FileArchive size={size} />
+  return <FileText size={size} />
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// ─── Lightbox ─────────────────────────────────────────────────────
+function Lightbox({ url, filename, onClose }) {
+  useEffect(() => {
+    function handler(e) {
+      if (e.key === 'Escape') { e.stopImmediatePropagation(); onClose() }
+    }
+    // Capture phase so we intercept before NoteEditor's own Escape listener
+    document.addEventListener('keydown', handler, true)
+    return () => document.removeEventListener('keydown', handler, true)
+  }, [onClose])
+
+  return createPortal(
+    <div
+      data-lightbox="true"
+      className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+      >
+        <X size={20} />
+      </button>
+      <img
+        src={url}
+        alt={filename || 'Image'}
+        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      />
+      {filename && (
+        <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/60 truncate max-w-xs">{filename}</p>
+      )}
+    </div>,
+    document.body
+  )
+}
+
+// ─── ImageNodeView ────────────────────────────────────────────────
+function ImageNodeView({ node, updateAttributes, deleteNode }) {
+  const { url, filename, size = 'medium' } = node.attrs
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+
+  return (
+    <NodeViewWrapper className="my-3" contentEditable={false}>
+      <div className="relative inline-block group/img max-w-full" data-drag-handle>
+        <img
+          src={url}
+          alt={filename || 'Image'}
+          style={{ width: IMAGE_SIZES[size]?.width ?? 400, maxWidth: '100%', display: 'block', borderRadius: 8, cursor: 'zoom-in' }}
+          onClick={() => setLightboxOpen(true)}
+          draggable={false}
+        />
+
+        {/* Size + delete controls */}
+        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity">
+          {Object.entries(IMAGE_SIZES).map(([s, { label }]) => (
+            <button
+              key={s}
+              onMouseDown={e => { e.preventDefault(); e.stopPropagation() }}
+              onClick={e => { e.stopPropagation(); updateAttributes({ size: s }) }}
+              className={cn(
+                'w-5 h-5 rounded text-[10px] font-bold transition-colors',
+                size === s
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-black/50 text-white hover:bg-black/70'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation() }}
+            onClick={e => { e.stopPropagation(); deleteNode() }}
+            className="w-5 h-5 rounded bg-black/50 text-white hover:bg-red-500/80 flex items-center justify-center transition-colors"
+          >
+            <Trash2 size={10} />
+          </button>
+        </div>
+      </div>
+
+      {lightboxOpen && <Lightbox url={url} filename={filename} onClose={() => setLightboxOpen(false)} />}
+    </NodeViewWrapper>
+  )
+}
+
+// ─── FileNodeView ─────────────────────────────────────────────────
+function FileNodeView({ node, deleteNode }) {
+  const { url, filename, mimetype, filesize } = node.attrs
+
+  return (
+    <NodeViewWrapper className="my-2" contentEditable={false}>
+      <div
+        className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 group/file hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+        data-drag-handle
+      >
+        <div className="text-slate-400 dark:text-slate-500 shrink-0">
+          <FileTypeIcon mimetype={mimetype} />
+        </div>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="flex-1 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate min-w-0"
+        >
+          {filename}
+        </a>
+        {filesize > 0 && (
+          <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{formatFileSize(filesize)}</span>
+        )}
+        <button
+          onMouseDown={e => e.preventDefault()}
+          onClick={e => { e.stopPropagation(); deleteNode() }}
+          className="opacity-0 group-hover/file:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-all shrink-0"
+          title="Remove attachment"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </NodeViewWrapper>
+  )
+}
+
+// ─── TipTap: EmbeddedImage ─────────────────────────────────────────
+const EmbeddedImage = Node.create({
+  name: 'embeddedImage',
+  group: 'block',
+  atom: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      url:      { default: '' },
+      filename: { default: '' },
+      size:     { default: 'medium' },
+    }
+  },
+
+  parseHTML() {
+    return [{
+      tag: 'div[data-type="embedded-image"]',
+      getAttrs: el => ({
+        url:      el.getAttribute('data-url') ?? '',
+        filename: el.getAttribute('data-filename') ?? '',
+        size:     el.getAttribute('data-size') ?? 'medium',
+      }),
+    }]
+  },
+
+  renderHTML({ node }) {
+    return ['div', mergeAttributes({
+      'data-type':     'embedded-image',
+      'data-url':      node.attrs.url,
+      'data-filename': node.attrs.filename,
+      'data-size':     node.attrs.size,
+    })]
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ImageNodeView)
+  },
+})
+
+// ─── TipTap: EmbeddedFile ──────────────────────────────────────────
+const EmbeddedFile = Node.create({
+  name: 'embeddedFile',
+  group: 'block',
+  atom: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      url:      { default: '' },
+      filename: { default: '' },
+      mimetype: { default: '' },
+      filesize: { default: 0 },
+    }
+  },
+
+  parseHTML() {
+    return [{
+      tag: 'div[data-type="embedded-file"]',
+      getAttrs: el => ({
+        url:      el.getAttribute('data-url') ?? '',
+        filename: el.getAttribute('data-filename') ?? '',
+        mimetype: el.getAttribute('data-mimetype') ?? '',
+        filesize: Number(el.getAttribute('data-filesize') ?? 0),
+      }),
+    }]
+  },
+
+  renderHTML({ node }) {
+    return ['div', mergeAttributes({
+      'data-type':     'embedded-file',
+      'data-url':      node.attrs.url,
+      'data-filename': node.attrs.filename,
+      'data-mimetype': node.attrs.mimetype,
+      'data-filesize': String(node.attrs.filesize),
+    })]
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(FileNodeView)
+  },
+})
 
 // ─── Toolbar helpers ──────────────────────────────────────────────
 function Divider() {
@@ -105,7 +341,6 @@ function SavedIndicator({ status }) {
 }
 
 // ─── Content migration ────────────────────────────────────────────
-// Old format: { html, tables: [...] }  →  new format: plain HTML with embedded table nodes
 function migrateContent(raw) {
   if (!raw) return ''
   try {
@@ -125,8 +360,6 @@ function migrateContent(raw) {
 }
 
 // ─── TableNodeView ────────────────────────────────────────────────
-// Rendered by TipTap whenever an embeddedTable node appears in the doc.
-// Tables live inline with text — cursor can be placed before/after them.
 function TableNodeView({ node, updateAttributes, deleteNode }) {
   const { id, name: initialName } = node.attrs
   const [tableName, setTableName] = useState(initialName || 'Table')
@@ -193,7 +426,6 @@ function TableNodeView({ node, updateAttributes, deleteNode }) {
   return (
     <NodeViewWrapper className="my-4" contentEditable={false}>
       <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-        {/* Header — data-drag-handle lets TipTap drag this node */}
         <div
           className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 select-none"
           data-drag-handle
@@ -207,41 +439,24 @@ function TableNodeView({ node, updateAttributes, deleteNode }) {
             className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-transparent outline-none min-w-0 cursor-text"
             placeholder="Table name…"
           />
-          <button
-            onMouseDown={e => e.stopPropagation()}
-            onClick={handleCopy}
-            className="p-1 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors shrink-0"
-            title="Copy table (also copies as HTML for Notes/Word/Pages)">
+          <button onMouseDown={e => e.stopPropagation()} onClick={handleCopy}
+            className="p-1 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors shrink-0" title="Copy table">
             <Copy size={13} />
           </button>
-          <button
-            onMouseDown={e => e.stopPropagation()}
-            onClick={handleCut}
-            className="p-1 text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 transition-colors shrink-0"
-            title="Cut table">
+          <button onMouseDown={e => e.stopPropagation()} onClick={handleCut}
+            className="p-1 text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 transition-colors shrink-0" title="Cut table">
             <Scissors size={13} />
           </button>
-          <button
-            onMouseDown={e => e.stopPropagation()}
-            onClick={deleteNode}
-            className="p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0"
-            title="Delete table">
+          <button onMouseDown={e => e.stopPropagation()} onClick={deleteNode}
+            className="p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0" title="Delete table">
             <Trash2 size={13} />
           </button>
         </div>
 
-        {/* Table content */}
-        <div
-          ref={contentRef}
-          style={height ? { height, overflowY: 'auto' } : {}}
-        >
-          <TableGrid
-            table={tableData}
-            onChange={newData => updateAttributes({ tableData: newData })}
-          />
+        <div ref={contentRef} style={height ? { height, overflowY: 'auto' } : {}}>
+          <TableGrid table={tableData} onChange={newData => updateAttributes({ tableData: newData })} />
         </div>
 
-        {/* Bottom resize handle */}
         <div
           className="h-2.5 bg-slate-50 dark:bg-slate-800/40 hover:bg-blue-100 dark:hover:bg-blue-900/30 cursor-row-resize flex items-center justify-center group/btm"
           onMouseDown={startResize}
@@ -253,12 +468,12 @@ function TableNodeView({ node, updateAttributes, deleteNode }) {
   )
 }
 
-// ─── TipTap extension ─────────────────────────────────────────────
+// ─── TipTap: EmbeddedTable ─────────────────────────────────────────
 const EmbeddedTable = Node.create({
   name: 'embeddedTable',
   group: 'block',
-  atom: true,      // treated as a single unit; cursor can be placed before/after
-  draggable: true, // allows TipTap drag-to-reorder
+  atom: true,
+  draggable: true,
 
   addAttributes() {
     return {
@@ -294,16 +509,20 @@ const EmbeddedTable = Node.create({
 // ─── Main component ───────────────────────────────────────────────
 export default function NoteEditor({ note, onClose, onUpdate, inline = false }) {
   const { dark } = useTheme()
+  const { user } = useAuth()
   const { width, startResize } = useResizable({ defaultWidth: 600, minWidth: 360, maxWidth: 1100 })
   const [title, setTitle] = useState(note?.title ?? '')
   const [saveStatus, setSaveStatus] = useState('idle')
   const [visible, setVisible] = useState(false)
   const [clipboardHasTable, setClipboardHasTable] = useState(() => tableClipboard.has())
+  const [uploadCount, setUploadCount] = useState(0) // number of in-flight uploads
+  const [uploadError, setUploadError] = useState(null)
   const titleTimeout = useRef(null)
   const bodyTimeout = useRef(null)
   const savedTimer = useRef(null)
+  const fileInputRef = useRef(null)   // all-files picker
+  const imageInputRef = useRef(null)  // images-only picker (camera button)
 
-  // Subscribe to clipboard changes (triggered from TableNodeView.handleCopy)
   useEffect(() => tableClipboard.subscribe(setClipboardHasTable), [])
 
   function focusEditor() {
@@ -327,7 +546,7 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
   }
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline, TextStyle, Color, TiptapFontSize, EmbeddedTable],
+    extensions: [StarterKit, Underline, TextStyle, Color, TiptapFontSize, EmbeddedTable, EmbeddedImage, EmbeddedFile],
     content: migrateContent(note?.content),
     editorProps: {
       attributes: { class: 'outline-none min-h-64 prose max-w-none note-editor-prose' },
@@ -349,7 +568,10 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
   }, [note?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const handler = e => { if (e.key === 'Escape') onClose() }
+    const handler = e => {
+      // Don't close if a lightbox is open
+      if (e.key === 'Escape' && !document.querySelector('[data-lightbox]')) onClose()
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
@@ -378,6 +600,42 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
       type: 'embeddedTable',
       attrs: { id: `t_${Date.now()}`, name: t.name, tableData: t.data },
     })
+  }
+
+  // ── Upload ────────────────────────────────────────────────────────
+  async function handleFiles(fileList) {
+    if (!fileList?.length || !user?.id || !note?.id) return
+    const files = Array.from(fileList)
+    setUploadError(null)
+    setUploadCount(c => c + files.length)
+
+    for (const file of files) {
+      try {
+        const { url } = await uploadNoteFile(file, user.id, note.id)
+        const isImage = file.type.startsWith('image/')
+
+        if (isImage) {
+          editor?.commands.insertContent({
+            type: 'embeddedImage',
+            attrs: { url, filename: file.name, size: 'medium' },
+          })
+        } else {
+          editor?.commands.insertContent({
+            type: 'embeddedFile',
+            attrs: { url, filename: file.name, mimetype: file.type, filesize: file.size },
+          })
+        }
+
+        // Trigger a save now that content has changed
+        saveContent(editor.getHTML())
+      } catch (err) {
+        console.error('Upload failed:', err)
+        setUploadError('Upload failed — check Storage bucket is set up (see supabase/storage-setup.sql)')
+        setTimeout(() => setUploadError(null), 5000)
+      } finally {
+        setUploadCount(c => c - 1)
+      }
+    }
   }
 
   if (!note) return null
@@ -499,7 +757,53 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
             <ClipboardPaste size={14} />
           </ToolBtn>
         )}
+
+        <Divider />
+
+        {/* Attachment buttons */}
+        <ToolBtn
+          onClick={() => fileInputRef.current?.click()}
+          title="Attach file (PDF, Word, Excel, images…)"
+          disabled={uploadCount > 0}
+        >
+          {uploadCount > 0
+            ? <Loader2 size={14} className="animate-spin" />
+            : <Paperclip size={14} />
+          }
+        </ToolBtn>
+
+        <ToolBtn
+          onClick={() => imageInputRef.current?.click()}
+          title="Attach photo or image"
+          disabled={uploadCount > 0}
+        >
+          <Camera size={14} />
+        </ToolBtn>
+
+        {/* Hidden file inputs */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={e => { handleFiles(e.target.files); e.target.value = '' }}
+        />
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={e => { handleFiles(e.target.files); e.target.value = '' }}
+        />
       </div>
+
+      {/* Upload error banner */}
+      {uploadError && (
+        <div className="mx-4 mt-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-600 dark:text-red-400 shrink-0">
+          {uploadError}
+        </div>
+      )}
 
       {/* ── Editor body ── */}
       <div
@@ -512,14 +816,12 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
 
   return (
     <div className={inline ? 'h-full' : 'fixed inset-0 z-50 flex justify-end'}>
-      {/* Heading size overrides */}
       <style>{`
         .note-editor-prose h1 { font-size: 1.875rem; font-weight: 700; line-height: 1.25; margin: 1rem 0 0.5rem; }
         .note-editor-prose h2 { font-size: 1.5rem;   font-weight: 600; line-height: 1.3;  margin: 0.875rem 0 0.5rem; }
         .note-editor-prose h3 { font-size: 1.25rem;  font-weight: 600; line-height: 1.4;  margin: 0.75rem 0 0.5rem; }
       `}</style>
 
-      {/* Backdrop — modal mode only */}
       {!inline && (
         <div
           className={cn(
@@ -530,7 +832,6 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
         />
       )}
 
-      {/* Panel */}
       <div
         className={cn(
           'relative flex flex-col h-full bg-white dark:bg-slate-900',
