@@ -234,6 +234,13 @@ export function TableGrid({ table, onChange }) {
   const [typeMenuCol, setTypeMenuCol] = useState(null)
   const [colWidths, setColWidths] = useState({})
   const colGroupRef = useRef(null)
+  const tableRef = useRef(null)
+
+  // Explicit table width = sum of col widths + 40px action column.
+  // Without this, table-layout: fixed fills the container and scales all
+  // <col> widths proportionally — so "140px" might render as 400px,
+  // making it impossible to shrink below the scaled size.
+  const tableWidth = table.columns.reduce((s, c) => s + (colWidths[c.id] ?? 140), 0) + 40
 
   function updateCell(rowId, colId, val) {
     onChange({ ...table, rows: table.rows.map(r => r.id === rowId ? { ...r, cells: { ...r.cells, [colId]: val } } : r) })
@@ -279,13 +286,18 @@ export function TableGrid({ table, onChange }) {
     document.body.style.userSelect = 'none'
 
     const startW = colWidths[colId] ?? 140
+    // Explicit table width so we can keep it in sync during drag
+    const startTableW = table.columns.reduce((s, c) => s + (colWidths[c.id] ?? 140), 0) + 40
     const colEl = colGroupRef.current?.children?.[colIndex]
+    const tblEl = tableRef.current
     const startX = e.clientX
     let finalW = startW
 
     function onMove(ev) {
       finalW = Math.max(60, startW + (ev.clientX - startX))
+      // Update column width and table width together so layout stays consistent
       if (colEl) colEl.style.width = finalW + 'px'
+      if (tblEl) tblEl.style.width = (startTableW - startW + finalW) + 'px'
     }
     function onUp() {
       document.removeEventListener('mousemove', onMove)
@@ -300,7 +312,7 @@ export function TableGrid({ table, onChange }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
+      <table ref={tableRef} className="border-collapse text-sm" style={{ tableLayout: 'fixed', width: tableWidth }}>
         <colgroup ref={colGroupRef}>
           {table.columns.map(col => (
             <col key={col.id} style={{ width: colWidths[col.id] ?? 140 }} />
