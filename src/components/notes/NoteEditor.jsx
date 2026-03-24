@@ -131,7 +131,6 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
   const [dragTableIdx, setDragTableIdx] = useState(null)   // visual only
   const [dragOverIdx, setDragOverIdx] = useState(null)     // visual only
   const tableWrapperRefs = useRef([])
-  const pointerDragRef = useRef({ active: false, srcIdx: null, dstIdx: null })
   const titleTimeout = useRef(null)
   const bodyTimeout = useRef(null)
   const savedTimer = useRef(null)
@@ -252,64 +251,77 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
     handle.addEventListener('pointerup', onUp)
   }
 
-  // ── Table drag-to-reorder (pointer events — avoids HTML5 DnD / TipTap conflicts) ──
+  // ── Table drag-to-reorder (document mousemove — most reliable cross-browser) ──
   function startTableDrag(e, idx) {
-    if (e.button !== 0) return
     e.preventDefault()
-    const handle = e.currentTarget
-    handle.setPointerCapture(e.pointerId)
-    pointerDragRef.current = { active: true, srcIdx: idx, dstIdx: null }
     setDragTableIdx(idx)
+    let dstIdx = null
 
     function onMove(ev) {
       const y = ev.clientY
-      let found = null
+      // Find which table the cursor is closest to (by midpoint distance)
+      let closest = null
+      let closestDist = Infinity
       tableWrapperRefs.current.forEach((el, i) => {
-        if (!el || i === pointerDragRef.current.srcIdx) return
+        if (!el || i === idx) return
         const rect = el.getBoundingClientRect()
-        if (y >= rect.top && y <= rect.bottom) found = i
+        const mid = (rect.top + rect.bottom) / 2
+        const dist = Math.abs(y - mid)
+        if (dist < closestDist) { closestDist = dist; closest = i }
       })
-      if (found !== pointerDragRef.current.dstIdx) {
-        pointerDragRef.current.dstIdx = found
-        setDragOverIdx(found)
-      }
+      dstIdx = closest
+      setDragOverIdx(closest)
     }
 
     function onUp() {
-      handle.removeEventListener('pointermove', onMove)
-      handle.removeEventListener('pointerup', onUp)
-      const { srcIdx, dstIdx } = pointerDragRef.current
-      if (dstIdx !== null && dstIdx !== srcIdx) {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      if (dstIdx !== null && dstIdx !== idx) {
         const tables = embeddedTablesRef.current
         const next = [...tables]
-        const [moved] = next.splice(srcIdx, 1)
+        const [moved] = next.splice(idx, 1)
         next.splice(dstIdx, 0, moved)
         setEmbeddedTables(next)
         saveContent(editor?.getHTML() ?? '', next)
       }
-      pointerDragRef.current = { active: false, srcIdx: null, dstIdx: null }
       setDragTableIdx(null)
       setDragOverIdx(null)
     }
 
-    handle.addEventListener('pointermove', onMove)
-    handle.addEventListener('pointerup', onUp)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
   }
 
   // ── Table clipboard ──────────────────────────────────────────────
+  function cellText(v) {
+    if (v == null) return ''
+    if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE'
+    return Array.isArray(v) ? v.join(', ') : String(v)
+  }
+
   function copyTable(t) {
     tableClipboard.copy(t)
     setClipboardHasTable(true)
+
+    // Build both HTML (for rich paste into Notes/Word/Pages) and TSV (for Excel/Sheets)
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    const headers = t.data.columns.map(c => `<th style="border:1px solid #ccc;padding:4px 8px;background:#f5f5f5">${esc(c.name)}</th>`).join('')
+    const bodyRows = t.data.rows.map(r =>
+      `<tr>${t.data.columns.map(c => `<td style="border:1px solid #ccc;padding:4px 8px">${esc(cellText(r.cells[c.id]))}</td>`).join('')}</tr>`
+    ).join('')
+    const html = `<table style="border-collapse:collapse"><thead><tr>${headers}</tr></thead><tbody>${bodyRows}</tbody></table>`
+
     const tsv = [
       t.data.columns.map(c => c.name).join('\t'),
-      ...t.data.rows.map(r =>
-        t.data.columns.map(c => {
-          const v = r.cells[c.id] ?? ''
-          return Array.isArray(v) ? v.join(', ') : String(v)
-        }).join('\t')
-      ),
+      ...t.data.rows.map(r => t.data.columns.map(c => cellText(r.cells[c.id])).join('\t')),
     ].join('\n')
-    navigator.clipboard.writeText(tsv).catch(() => {})
+
+    navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([tsv], { type: 'text/plain' }),
+      })
+    ]).catch(() => navigator.clipboard.writeText(tsv).catch(() => {}))
   }
 
   function cutTable(t) {
@@ -507,8 +519,8 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
               {/* Table header bar — drag via pointer events (avoids HTML5 DnD / TipTap conflicts) */}
               <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 select-none">
                 <div
-                  onPointerDown={e => startTableDrag(e, idx)}
-                  className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 shrink-0 touch-none"
+                  onMouseDown={e => startTableDrag(e, idx)}
+                  className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 shrink-0 select-none"
                 >
                   <GripVertical size={14} />
                 </div>

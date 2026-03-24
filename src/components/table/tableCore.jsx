@@ -275,14 +275,9 @@ export function TableGrid({ table, onChange }) {
   function startColResize(e, colId, colIndex) {
     e.preventDefault()
     e.stopPropagation()
-    const handle = e.currentTarget
-    handle.setPointerCapture(e.pointerId)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
 
-    // Use stored state as the source of truth — avoids DOM measurement issues
-    // (getBoundingClientRect on <th> includes border-collapse adjustments that
-    // don't match what React passes to <col>, causing shrink to fail).
     const startW = colWidths[colId] ?? 140
     const colEl = colGroupRef.current?.children?.[colIndex]
     const startX = e.clientX
@@ -293,14 +288,14 @@ export function TableGrid({ table, onChange }) {
       if (colEl) colEl.style.width = finalW + 'px'
     }
     function onUp() {
-      handle.removeEventListener('pointermove', onMove)
-      handle.removeEventListener('pointerup', onUp)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
       setColWidths(prev => ({ ...prev, [colId]: finalW }))
     }
-    handle.addEventListener('pointermove', onMove)
-    handle.addEventListener('pointerup', onUp)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
   }
 
   return (
@@ -382,7 +377,7 @@ export function TableGrid({ table, onChange }) {
 
                   {/* Right-edge resize handle */}
                   <div
-                    onPointerDown={e => startColResize(e, col.id, ci)}
+                    onMouseDown={e => startColResize(e, col.id, ci)}
                     className="w-2 shrink-0 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors touch-none"
                   />
                 </div>

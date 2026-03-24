@@ -371,9 +371,9 @@ export default function NoteListView({ notes, project, onCreateNote, onUpdateNot
             {notesList}
           </div>
 
-          {/* Inline editor panel — sticky so it stays visible while scrolling the list */}
+          {/* Inline editor panel — sticky + explicit height so the editor body can scroll */}
           {selectedNote ? (
-            <div className="flex-1 min-w-0 sticky top-6 max-h-[calc(100vh-6rem)] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+            <div className="flex-1 min-w-0 sticky top-4 h-[calc(100vh-7rem)] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
               <NoteEditor
                 inline
                 note={selectedNote}
@@ -382,7 +382,7 @@ export default function NoteListView({ notes, project, onCreateNote, onUpdateNot
               />
             </div>
           ) : (
-            <div className="flex-1 min-w-0 sticky top-6 h-64 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-center">
+            <div className="flex-1 min-w-0 sticky top-4 h-48 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-center">
               <p className="text-sm text-slate-400 dark:text-slate-500">Select a note to open it</p>
             </div>
           )}
