@@ -425,7 +425,7 @@ function TableNodeView({ node, updateAttributes, deleteNode }) {
 
   return (
     <NodeViewWrapper className="my-4" contentEditable={false}>
-      <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+      <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden" style={{ width: 'fit-content', maxWidth: '100%' }}>
         <div
           className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 select-none"
           data-drag-handle
@@ -453,7 +453,7 @@ function TableNodeView({ node, updateAttributes, deleteNode }) {
           </button>
         </div>
 
-        <div ref={contentRef} style={height ? { height, overflowY: 'auto' } : {}}>
+        <div ref={contentRef} style={height ? { height, overflowY: 'auto', overflowX: 'auto' } : { overflowX: 'auto' }}>
           <TableGrid table={tableData} onChange={newData => updateAttributes({ tableData: newData })} />
         </div>
 
@@ -630,8 +630,8 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
         saveContent(editor.getHTML())
       } catch (err) {
         console.error('Upload failed:', err)
-        setUploadError('Upload failed — check Storage bucket is set up (see supabase/storage-setup.sql)')
-        setTimeout(() => setUploadError(null), 5000)
+        setUploadError(err.message ?? 'Upload failed')
+        setTimeout(() => setUploadError(null), 12000)
       } finally {
         setUploadCount(c => c - 1)
       }
@@ -800,7 +800,7 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
 
       {/* Upload error banner */}
       {uploadError && (
-        <div className="mx-4 mt-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-600 dark:text-red-400 shrink-0">
+        <div className="mx-4 mt-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-600 dark:text-red-400 shrink-0 whitespace-pre-wrap max-h-40 overflow-y-auto">
           {uploadError}
         </div>
       )}
