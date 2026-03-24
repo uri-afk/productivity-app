@@ -44,7 +44,7 @@ export default function AppShell() {
       <div className="flex flex-col flex-1 min-w-0">
         <TopNav
           onMenuClick={() => setSidebarOpen(true)}
-          onNew={() => newHandlerRef.current?.()}
+          onNew={() => setCaptureOpen(true)}
         />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
