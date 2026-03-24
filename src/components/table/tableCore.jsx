@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Check, Plus, X, Trash2, GripVertical } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
@@ -280,10 +280,10 @@ export function TableGrid({ table, onChange }) {
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
 
-    // Read actual rendered width from the <th> (which has a layout box).
-    // <col> elements have no bounding rect — getBoundingClientRect() returns 0 on them.
-    const thEl = handle.closest('th')
-    const startW = thEl ? thEl.getBoundingClientRect().width : (colWidths[colId] ?? 140)
+    // Use stored state as the source of truth — avoids DOM measurement issues
+    // (getBoundingClientRect on <th> includes border-collapse adjustments that
+    // don't match what React passes to <col>, causing shrink to fail).
+    const startW = colWidths[colId] ?? 140
     const colEl = colGroupRef.current?.children?.[colIndex]
     const startX = e.clientX
     let finalW = startW

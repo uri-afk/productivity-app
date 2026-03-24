@@ -240,6 +240,17 @@ export default function NoteListView({ notes, project, onCreateNote, onUpdateNot
   const [selectedNote, setSelectedNote] = useState(null)
   const [movePopup, setMovePopup] = useState(null) // { noteId, anchor }
 
+  // Desktop = wide enough to show the note list + inline editor side-by-side
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const handler = () => setIsDesktop(mq.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   // Refs for drag — set synchronously so dragover/drop see correct values
   const dragNoteIdRef = useRef(null)
   const isDraggingNoteRef = useRef(false)
@@ -295,7 +306,8 @@ export default function NoteListView({ notes, project, onCreateNote, onUpdateNot
 
   const textNotes = notes.filter(n => n.type !== 'task_table')
 
-  return (
+  // The notes list (left column)
+  const notesList = (
     <div className="space-y-4">
       {sections.map((section, idx) => (
         <NoteSection
@@ -320,7 +332,19 @@ export default function NoteListView({ notes, project, onCreateNote, onUpdateNot
         />
       ))}
 
-      {/* Move-to popup (shown when clicking the FolderInput icon) */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={addSection}
+          className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 py-1 transition-colors">
+          <Plus size={14} /> Add section
+        </button>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      {/* Move-to popup (portal, always rendered at fixed position) */}
       {movePopup && (() => {
         const note = notes.find(n => n.id === movePopup.noteId)
         if (!note) return null
@@ -339,21 +363,43 @@ export default function NoteListView({ notes, project, onCreateNote, onUpdateNot
         )
       })()}
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={addSection}
-          className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 py-1 transition-colors">
-          <Plus size={14} /> Add section
-        </button>
-      </div>
+      {/* Desktop: side-by-side list + inline editor */}
+      {isDesktop ? (
+        <div className="flex gap-4 items-start">
+          {/* Notes list — narrows when an editor is open */}
+          <div className={cn('min-w-0 shrink-0', selectedNote ? 'w-72' : 'flex-1')}>
+            {notesList}
+          </div>
 
-      {selectedNote && (
-        <NoteEditor
-          note={selectedNote}
-          onClose={() => setSelectedNote(null)}
-          onUpdate={onUpdateNote}
-        />
+          {/* Inline editor panel — sticky so it stays visible while scrolling the list */}
+          {selectedNote ? (
+            <div className="flex-1 min-w-0 sticky top-6 max-h-[calc(100vh-6rem)] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+              <NoteEditor
+                inline
+                note={selectedNote}
+                onClose={() => setSelectedNote(null)}
+                onUpdate={onUpdateNote}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 min-w-0 sticky top-6 h-64 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-center">
+              <p className="text-sm text-slate-400 dark:text-slate-500">Select a note to open it</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Mobile: full-width list + modal editor */
+        <>
+          {notesList}
+          {selectedNote && (
+            <NoteEditor
+              note={selectedNote}
+              onClose={() => setSelectedNote(null)}
+              onUpdate={onUpdateNote}
+            />
+          )}
+        </>
       )}
-    </div>
+    </>
   )
 }

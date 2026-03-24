@@ -6,11 +6,13 @@ import { TextStyle, Color, FontSize as TiptapFontSize } from '@tiptap/extension-
 import {
   X, Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered, Minus, Check, ChevronDown, LayoutGrid, Trash2, GripVertical,
+  Copy, Scissors, ClipboardPaste,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { useTheme } from '../../lib/ThemeContext'
 import { useResizable } from '../../hooks/useResizable'
 import { TableGrid, defaultTable } from '../table/tableCore'
+import { tableClipboard } from '../../lib/tableClipboard'
 
 
 // ─── Preset palettes ──────────────────────────────────────────────
@@ -118,7 +120,7 @@ function serializeNoteContent(html, tables) {
 }
 
 // ─── Main component ───────────────────────────────────────────────
-export default function NoteEditor({ note, onClose, onUpdate }) {
+export default function NoteEditor({ note, onClose, onUpdate, inline = false }) {
   const { dark } = useTheme()
   const { width, startResize } = useResizable({ defaultWidth: 600, minWidth: 360, maxWidth: 1100 })
   const [title, setTitle] = useState(note?.title ?? '')
@@ -128,8 +130,8 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
   const [tableHeights, setTableHeights] = useState({})
   const [dragTableIdx, setDragTableIdx] = useState(null)   // visual only
   const [dragOverIdx, setDragOverIdx] = useState(null)     // visual only
-  const isDraggingTableRef = useRef(false)    // synchronous — used in capture handlers
-  const tableDragSrcRef = useRef(null)        // synchronous — used in drop handler
+  const tableWrapperRefs = useRef([])
+  const pointerDragRef = useRef({ active: false, srcIdx: null, dstIdx: null })
   const titleTimeout = useRef(null)
   const bodyTimeout = useRef(null)
   const savedTimer = useRef(null)
@@ -138,6 +140,8 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
   // Ref so TipTap's debounced onUpdate always sees the latest tables
   const embeddedTablesRef = useRef(embeddedTables)
   useEffect(() => { embeddedTablesRef.current = embeddedTables }, [embeddedTables])
+
+  const [clipboardHasTable, setClipboardHasTable] = useState(() => tableClipboard.has())
 
   function focusEditor() {
     setTimeout(() => { editor?.view?.dom?.focus() }, 0)
@@ -248,18 +252,78 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
     handle.addEventListener('pointerup', onUp)
   }
 
-  // ── Table drag-to-reorder ────────────────────────────────────────
-  function handleTableDrop(e, toIdx) {
+  // ── Table drag-to-reorder (pointer events — avoids HTML5 DnD / TipTap conflicts) ──
+  function startTableDrag(e, idx) {
+    if (e.button !== 0) return
     e.preventDefault()
-    const fromIdx = tableDragSrcRef.current  // ref — always current, no stale closure
-    if (fromIdx === null || fromIdx === toIdx) return
-    const next = [...embeddedTables]
-    const [moved] = next.splice(fromIdx, 1)
-    next.splice(toIdx, 0, moved)
+    const handle = e.currentTarget
+    handle.setPointerCapture(e.pointerId)
+    pointerDragRef.current = { active: true, srcIdx: idx, dstIdx: null }
+    setDragTableIdx(idx)
+
+    function onMove(ev) {
+      const y = ev.clientY
+      let found = null
+      tableWrapperRefs.current.forEach((el, i) => {
+        if (!el || i === pointerDragRef.current.srcIdx) return
+        const rect = el.getBoundingClientRect()
+        if (y >= rect.top && y <= rect.bottom) found = i
+      })
+      if (found !== pointerDragRef.current.dstIdx) {
+        pointerDragRef.current.dstIdx = found
+        setDragOverIdx(found)
+      }
+    }
+
+    function onUp() {
+      handle.removeEventListener('pointermove', onMove)
+      handle.removeEventListener('pointerup', onUp)
+      const { srcIdx, dstIdx } = pointerDragRef.current
+      if (dstIdx !== null && dstIdx !== srcIdx) {
+        const tables = embeddedTablesRef.current
+        const next = [...tables]
+        const [moved] = next.splice(srcIdx, 1)
+        next.splice(dstIdx, 0, moved)
+        setEmbeddedTables(next)
+        saveContent(editor?.getHTML() ?? '', next)
+      }
+      pointerDragRef.current = { active: false, srcIdx: null, dstIdx: null }
+      setDragTableIdx(null)
+      setDragOverIdx(null)
+    }
+
+    handle.addEventListener('pointermove', onMove)
+    handle.addEventListener('pointerup', onUp)
+  }
+
+  // ── Table clipboard ──────────────────────────────────────────────
+  function copyTable(t) {
+    tableClipboard.copy(t)
+    setClipboardHasTable(true)
+    const tsv = [
+      t.data.columns.map(c => c.name).join('\t'),
+      ...t.data.rows.map(r =>
+        t.data.columns.map(c => {
+          const v = r.cells[c.id] ?? ''
+          return Array.isArray(v) ? v.join(', ') : String(v)
+        }).join('\t')
+      ),
+    ].join('\n')
+    navigator.clipboard.writeText(tsv).catch(() => {})
+  }
+
+  function cutTable(t) {
+    copyTable(t)
+    deleteTable(t.id)
+  }
+
+  function pasteTable() {
+    const t = tableClipboard.get()
+    if (!t) return
+    const newEntry = { ...t, id: `t_${Date.now()}` }
+    const next = [...embeddedTables, newEntry]
     setEmbeddedTables(next)
     saveContent(editor?.getHTML() ?? '', next)
-    setDragTableIdx(null)
-    setDragOverIdx(null)
   }
 
   if (!note) return null
@@ -267,7 +331,7 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
   const activeColor = editor?.getAttributes('textStyle')?.color ?? null
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className={inline ? 'h-full' : 'fixed inset-0 z-50 flex justify-end'}>
       {/* Heading size overrides — prose-sm can render h1 < h2 in some Tailwind v4 configs */}
       <style>{`
         .note-editor-prose h1 { font-size: 1.875rem; font-weight: 700; line-height: 1.25; margin: 1rem 0 0.5rem; }
@@ -275,28 +339,36 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
         .note-editor-prose h3 { font-size: 1.25rem;  font-weight: 600; line-height: 1.4;  margin: 0.75rem 0 0.5rem; }
       `}</style>
 
-      {/* Dimmed backdrop */}
-      <div
-        className={cn(
-          'absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300',
-          visible ? 'opacity-100' : 'opacity-0'
-        )}
-        onClick={onClose}
-      />
+      {/* Dimmed backdrop — modal mode only */}
+      {!inline && (
+        <div
+          className={cn(
+            'absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300',
+            visible ? 'opacity-100' : 'opacity-0'
+          )}
+          onClick={onClose}
+        />
+      )}
 
       {/* Side panel */}
       <div
         className={cn(
           'relative flex flex-col h-full bg-white dark:bg-slate-900',
-          'border-l border-slate-200 dark:border-slate-800 shadow-2xl',
-          'transition-transform duration-300 ease-out',
-          visible ? 'translate-x-0' : 'translate-x-full'
+          inline
+            ? 'overflow-hidden'
+            : cn(
+                'border-l border-slate-200 dark:border-slate-800 shadow-2xl',
+                'transition-transform duration-300 ease-out',
+                visible ? 'translate-x-0' : 'translate-x-full'
+              )
         )}
-        style={{ width }}
+        style={inline ? {} : { width }}
       >
-        {/* Resize handle */}
-        <div onMouseDown={startResize}
-          className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10" />
+        {/* Resize handle — modal mode only */}
+        {!inline && (
+          <div onMouseDown={startResize}
+            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10" />
+        )}
 
         {/* ── Top bar ── */}
         <div className="flex items-center justify-between px-5 h-11 border-b border-slate-200 dark:border-slate-800 shrink-0">
@@ -406,6 +478,11 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
           <ToolBtn onClick={insertTable} title="Insert table">
             <LayoutGrid size={14} />
           </ToolBtn>
+          {clipboardHasTable && (
+            <ToolBtn onClick={pasteTable} title="Paste copied table">
+              <ClipboardPaste size={14} />
+            </ToolBtn>
+          )}
         </div>
 
         {/* ── Editor body ── */}
@@ -413,19 +490,12 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
           className="flex-1 overflow-y-auto px-6 py-5"
           style={{ color: dark ? 'rgb(248 250 252)' : 'rgb(15 23 42)' }}>
 
-          {/* Capture-phase handlers block TipTap from receiving table drags.
-              Must use isDraggingTableRef (not state) — the ref is set synchronously
-              in onDragStart, before the first dragover fires. */}
-          <div
-            onDragOverCapture={e => { if (isDraggingTableRef.current) { e.preventDefault(); e.stopPropagation() } }}
-            onDropCapture={e => { if (isDraggingTableRef.current) { e.preventDefault(); e.stopPropagation() } }}
-          >
-            <EditorContent editor={editor} />
-          </div>
+          <EditorContent editor={editor} />
 
           {/* Embedded tables */}
           {embeddedTables.map((t, idx) => (
             <div key={t.id}
+              ref={el => { tableWrapperRefs.current[idx] = el }}
               className={cn(
                 'mt-6 border rounded-xl overflow-hidden transition-colors',
                 dragOverIdx === idx && dragTableIdx !== idx
@@ -433,41 +503,32 @@ export default function NoteEditor({ note, onClose, onUpdate }) {
                   : 'border-slate-200 dark:border-slate-700',
                 dragTableIdx === idx && 'opacity-40'
               )}
-              onDragOver={e => { e.preventDefault(); setDragOverIdx(idx) }}
-              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverIdx(null) }}
-              onDrop={e => handleTableDrop(e, idx)}
             >
-              {/* Table header bar — draggable */}
-              <div
-                className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 cursor-grab active:cursor-grabbing select-none"
-                draggable
-                onDragStart={e => {
-                  // Set refs synchronously — state update is async and would miss
-                  // the first dragover/drop events that fire before the re-render.
-                  isDraggingTableRef.current = true
-                  tableDragSrcRef.current = idx
-                  setDragTableIdx(idx)
-                  e.dataTransfer.effectAllowed = 'move'
-                  e.dataTransfer.setData('application/x-note-table', String(idx))
-                }}
-                onDragEnd={() => {
-                  isDraggingTableRef.current = false
-                  tableDragSrcRef.current = null
-                  setDragTableIdx(null)
-                  setDragOverIdx(null)
-                }}
-              >
-                <GripVertical size={14} className="text-slate-400 shrink-0" />
+              {/* Table header bar — drag via pointer events (avoids HTML5 DnD / TipTap conflicts) */}
+              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 select-none">
+                <div
+                  onPointerDown={e => startTableDrag(e, idx)}
+                  className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 shrink-0 touch-none"
+                >
+                  <GripVertical size={14} />
+                </div>
                 <input
                   value={t.name}
                   onChange={e => updateTableName(t.id, e.target.value)}
-                  onClick={e => e.stopPropagation()}
-                  onMouseDown={e => e.stopPropagation()}
                   className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-transparent outline-none min-w-0 cursor-text"
                   placeholder="Table name…"
                 />
+                <button onClick={() => copyTable(t)}
+                  className="p-1 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors shrink-0"
+                  title="Copy table (pastes as TSV into Excel/Sheets)">
+                  <Copy size={13} />
+                </button>
+                <button onClick={() => cutTable(t)}
+                  className="p-1 text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 transition-colors shrink-0"
+                  title="Cut table">
+                  <Scissors size={13} />
+                </button>
                 <button onClick={() => deleteTable(t.id)}
-                  onMouseDown={e => e.stopPropagation()}
                   className="p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0"
                   title="Delete table">
                   <Trash2 size={13} />
