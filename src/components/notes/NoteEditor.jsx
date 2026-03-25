@@ -9,7 +9,7 @@ import {
   X, Bold, Italic, Underline as UnderlineIcon,
   List, ListOrdered, Minus, Check, ChevronDown, LayoutGrid, Trash2, GripVertical,
   Copy, Scissors, ClipboardPaste, Paperclip, Camera, Mic, Square,
-  FileText, File, FileSpreadsheet, FileArchive, ImageIcon,
+  FileText, File as FileIcon, FileSpreadsheet, FileArchive, ImageIcon,
   Loader2,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
@@ -50,7 +50,7 @@ const IMAGE_SIZES = {
 
 // ─── File type icon ───────────────────────────────────────────────
 function FileTypeIcon({ mimetype, size = 14 }) {
-  if (!mimetype) return <File size={size} />
+  if (!mimetype) return <FileIcon size={size} />
   if (mimetype.startsWith('image/')) return <ImageIcon size={size} />
   if (mimetype === 'application/pdf') return <FileText size={size} />
   if (mimetype.includes('spreadsheet') || mimetype.includes('excel') || mimetype === 'text/csv')
