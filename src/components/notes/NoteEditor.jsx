@@ -19,7 +19,6 @@ import { useResizable } from '../../hooks/useResizable'
 import { TableGrid, defaultTable } from '../table/tableCore'
 import { tableClipboard } from '../../lib/tableClipboard'
 import { uploadNoteFile, getSignedUrl } from '../../lib/noteStorage'
-import { supabase } from '../../lib/supabase'
 
 
 // ─── Preset palettes ──────────────────────────────────────────────
@@ -225,10 +224,16 @@ function FileNodeView({ node, deleteNode }) {
 function AudioNodeView({ node, deleteNode }) {
   const { path, filename } = node.attrs
   const [signedUrl, setSignedUrl] = useState(null)
+  const [urlError, setUrlError] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    getSignedUrl(path).then(url => { if (!cancelled) setSignedUrl(url) })
+    setUrlError(false)
+    getSignedUrl(path).then(url => {
+      if (cancelled) return
+      if (url) setSignedUrl(url)
+      else setUrlError(true)
+    })
     return () => { cancelled = true }
   }, [path])
 
@@ -242,7 +247,9 @@ function AudioNodeView({ node, deleteNode }) {
         <div className="flex-1 min-w-0">
           {signedUrl
             ? <audio controls src={signedUrl} className="w-full" style={{ height: 32 }} />
-            : <div className="h-8 flex items-center gap-1.5 text-xs text-slate-400"><Loader2 size={12} className="animate-spin" /> Loading…</div>
+            : urlError
+              ? <div className="h-8 flex items-center text-xs text-red-500">Cannot load audio — run supabase/storage-setup.sql to add read policy</div>
+              : <div className="h-8 flex items-center gap-1.5 text-xs text-slate-400"><Loader2 size={12} className="animate-spin" /> Loading…</div>
           }
           <p className="text-xs text-slate-400 mt-0.5 truncate">{filename}</p>
         </div>
@@ -733,13 +740,19 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
         const mimeUsed = mr.mimeType || 'audio/webm'
         const ext = mimeUsed.includes('mp4') ? 'm4a' : mimeUsed.includes('ogg') ? 'ogg' : 'webm'
         const blob = new Blob(chunksRef.current, { type: mimeUsed })
+        console.log('[voice] onstop fired, chunks:', chunksRef.current.length, 'blob size:', blob.size, 'mime:', mimeUsed)
         const file = new File([blob], `voice-memo-${Date.now()}.${ext}`, { type: mimeUsed })
         setUploadCount(c => c + 1)
         try {
           const { path } = await uploadNoteFile(file, user.id, note.id)
-          editor?.commands.insertContent({ type: 'embeddedAudio', attrs: { path, filename: file.name } })
+          console.log('[voice] uploaded, path:', path)
+          const audioTag = `<div data-type="embedded-audio" data-path="${path}" data-filename="${file.name}"></div>`
+          const currentHtml = editor?.getHTML() ?? ''
+          editor?.commands.setContent(currentHtml + audioTag)
           saveContent(editor.getHTML())
+          console.log('[voice] inserted and saved')
         } catch (err) {
+          console.error('[voice] error:', err)
           setUploadError(err.message ?? 'Voice upload failed')
           setTimeout(() => setUploadError(null), 12000)
         } finally {
