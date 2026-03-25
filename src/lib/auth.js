@@ -10,6 +10,17 @@ export async function signIn(email, password) {
   return { data, error }
 }
 
+export async function signInWithGoogle() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin,
+      queryParams: { access_type: 'offline', prompt: 'select_account' },
+    },
+  })
+  return { data, error }
+}
+
 export async function signOut() {
   const { error } = await supabase.auth.signOut()
   return { error }

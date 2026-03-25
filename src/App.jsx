@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './lib/AuthContext'
 import { ThemeProvider } from './lib/ThemeContext'
 import { ProjectsProvider } from './lib/ProjectsContext'
 import AuthPage from './pages/AuthPage'
+import InvitePage from './pages/InvitePage'
+import AdminPage from './pages/AdminPage'
 import AppShell from './components/layout/AppShell'
 import Dashboard from './pages/Dashboard'
 import ProjectView from './pages/ProjectView'
@@ -39,16 +41,22 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
+            {/* Public routes (redirect to /dashboard if already signed in) */}
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<AuthPage />} />
             </Route>
 
+            {/* Invite page — accessible regardless of auth state */}
+            <Route path="/invite/:token" element={<InvitePage />} />
+
+            {/* Protected routes */}
             <Route element={<ProtectedLayout />}>
               <Route element={<AppShell />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard"   element={<Dashboard />} />
                 <Route path="/project/:id" element={<ProjectView />} />
                 <Route path="/search"      element={<Navigate to="/dashboard" replace />} />
+                <Route path="/admin"       element={<AdminPage />} />
               </Route>
             </Route>
 
