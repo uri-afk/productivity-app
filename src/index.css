@@ -3,6 +3,19 @@
 /* Enable class-based dark mode */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* iPhone safe-area helpers */
+.pb-safe        { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.mb-safe        { margin-bottom:  env(safe-area-inset-bottom, 0px); }
+.pt-safe        { padding-top:    env(safe-area-inset-top,    0px); }
+/* Bottom padding = tab bar (4rem) + safe area, only on mobile */
+.pb-safe-bottom { padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px)); }
+
+/* Tap highlight suppression for interactive elements */
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 /* TipTap editor prose styles */
 .prose {
   color: inherit;

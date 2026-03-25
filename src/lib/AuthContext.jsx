@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { requestNotificationPermission } from './notifications'
 
 const AuthContext = createContext(null)
 
@@ -8,8 +9,12 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
+      // Ask for notification permission once after sign-in
+      if (event === 'SIGNED_IN') {
+        requestNotificationPermission()
+      }
     })
     return () => subscription.unsubscribe()
   }, [])

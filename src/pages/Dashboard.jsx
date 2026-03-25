@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useOutletContext, useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronRight, AlertCircle, Calendar, Flag } from 'lucide-react'
 import { useProjectsContext } from '../lib/ProjectsContext'
@@ -6,6 +6,7 @@ import { useAllTasks } from '../hooks/useAllTasks'
 import { formatDueDate, dueDateStatus } from '../lib/dates'
 import { cn } from '../lib/cn'
 import { parseISO, isValid, isThisWeek, startOfDay } from 'date-fns'
+import { checkAndNotifyDueTasks } from '../lib/notifications'
 
 const PRIORITY_COLORS = {
   high:   { bg: '#ef444420', text: '#ef4444' },
@@ -165,7 +166,7 @@ function GroupSection({ title, tasks, projects, projectMap, isOverdue, onNavigat
 }
 
 export default function Dashboard() {
-  const { setActiveTab } = useOutletContext()
+  const { setActiveTab, onNotificationNavigate } = useOutletContext()
   const { projects } = useProjectsContext()
   const { tasks, loading } = useAllTasks()
   const [filter, setFilter] = useState('week')
@@ -175,6 +176,13 @@ export default function Dashboard() {
     () => Object.fromEntries(projects.map(p => [p.id, p])),
     [projects]
   )
+
+  // Fire notifications for due/overdue tasks once data is loaded
+  useEffect(() => {
+    if (!loading && tasks.length > 0 && projects.length > 0) {
+      checkAndNotifyDueTasks(tasks, projects, onNotificationNavigate)
+    }
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleNavigate(projectId, sectionId, taskId) {
     setActiveTab('tasks')
