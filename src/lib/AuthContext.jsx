@@ -61,19 +61,8 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
       if (event === 'INITIAL_SESSION') {
-        // Set session immediately so the app loads fast, then verify in background
+        // Returning user — already validated on previous sign-in, just restore session
         if (mounted) setSession(sess)
-        if (sess) {
-          // Only check disabled status for existing sessions (invite already accepted)
-          const adminEmail = import.meta.env.VITE_ADMIN_EMAIL
-          if (sess.user.email !== adminEmail) {
-            const profile = await getMyProfile()
-            if (profile?.disabled) {
-              await signOut()
-              if (mounted) { setAccessError('disabled'); setSession(null) }
-            }
-          }
-        }
       } else if (event === 'SIGNED_IN') {
         // Set session immediately for fast load, then verify access in background
         if (mounted) { setSession(sess); setAccessError(null) }
