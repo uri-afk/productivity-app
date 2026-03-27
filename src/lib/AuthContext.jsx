@@ -75,8 +75,37 @@ export function AuthProvider({ children }) {
           }
         }
       } else if (event === 'SIGNED_IN') {
-        await checkAndSetSession(sess, true)
-        if (mounted && sess) requestNotificationPermission()
+        // Set session immediately for fast load, then verify access in background
+        if (mounted) { setSession(sess); setAccessError(null) }
+        if (sess) {
+          const adminEmail = import.meta.env.VITE_ADMIN_EMAIL
+          if (sess.user.email !== adminEmail) {
+            const profile = await getMyProfile()
+            if (!profile) {
+              // New user — try to accept a pending invite
+              let token = localStorage.getItem('pendingInviteToken')
+              if (!token) token = await getMyPendingInvite()
+              if (token) {
+                const { success } = await acceptInvite(token)
+                if (success) localStorage.removeItem('pendingInviteToken')
+                else {
+                  await signOut()
+                  if (mounted) { setAccessError('not_invited'); setSession(null) }
+                  return
+                }
+              } else {
+                await signOut()
+                if (mounted) { setAccessError('not_invited'); setSession(null) }
+                return
+              }
+            } else if (profile.disabled) {
+              await signOut()
+              if (mounted) { setAccessError('disabled'); setSession(null) }
+              return
+            }
+          }
+          if (mounted) requestNotificationPermission()
+        }
       } else if (event === 'SIGNED_OUT') {
         if (mounted) setSession(null)
         // Don't clear accessError — it was set before signOut was called
