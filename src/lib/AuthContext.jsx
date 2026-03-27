@@ -61,7 +61,19 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
       if (event === 'INITIAL_SESSION') {
-        await checkAndSetSession(sess, false)
+        // Set session immediately so the app loads fast, then verify in background
+        if (mounted) setSession(sess)
+        if (sess) {
+          // Only check disabled status for existing sessions (invite already accepted)
+          const adminEmail = import.meta.env.VITE_ADMIN_EMAIL
+          if (sess.user.email !== adminEmail) {
+            const profile = await getMyProfile()
+            if (profile?.disabled) {
+              await signOut()
+              if (mounted) { setAccessError('disabled'); setSession(null) }
+            }
+          }
+        }
       } else if (event === 'SIGNED_IN') {
         await checkAndSetSession(sess, true)
         if (mounted && sess) requestNotificationPermission()
