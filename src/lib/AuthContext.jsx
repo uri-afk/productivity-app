@@ -59,6 +59,11 @@ export function AuthProvider({ children }) {
       }
     }
 
+    // Fallback: resolve the loading state even if INITIAL_SESSION fires late
+    supabase.auth.getSession().then(({ data: { session: sess } }) => {
+      if (mounted) setSession(prev => prev === undefined ? sess : prev)
+    })
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
       if (event === 'INITIAL_SESSION') {
         // Returning user — already validated on previous sign-in, just restore session
