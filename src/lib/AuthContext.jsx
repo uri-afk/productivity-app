@@ -6,6 +6,11 @@ import { signOut } from './auth'
 
 const AuthContext = createContext(null)
 
+function isGenuineNewLogin(sess) {
+  if (!sess?.user?.last_sign_in_at) return false
+  return Date.now() - new Date(sess.user.last_sign_in_at).getTime() < 60_000
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined) // undefined = loading
   const [accessError, setAccessError] = useState(null) // null | 'not_invited' | 'disabled'
@@ -13,96 +18,58 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true
 
-    async function checkAndSetSession(sess, isNewLogin) {
-      if (!sess) {
-        if (mounted) setSession(null)
-        return
-      }
-
-      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL
-      if (sess.user.email === adminEmail) {
-        if (mounted) { setSession(sess); setAccessError(null) }
-        return
-      }
-
-      const profile = await getMyProfile()
-
-      if (profile) {
-        if (profile.disabled) {
-          await signOut()
-          if (mounted) { setAccessError('disabled'); setSession(null) }
-          return
-        }
-        if (mounted) { setSession(sess); setAccessError(null) }
-        return
-      }
-
-      // No profile — try to accept a pending invite
-      if (isNewLogin) {
-        let token = localStorage.getItem('pendingInviteToken')
-        if (!token) token = await getMyPendingInvite()
-        if (token) {
-          const { success } = await acceptInvite(token)
-          if (success) {
-            localStorage.removeItem('pendingInviteToken')
-            if (mounted) { setSession(sess); setAccessError(null) }
-            return
-          }
-        }
-        // No valid invite
-        await signOut()
-        if (mounted) { setAccessError('not_invited'); setSession(null) }
-      } else {
-        // Existing session but no profile (shouldn't normally happen)
-        await signOut()
-        if (mounted) { setAccessError('not_invited'); setSession(null) }
-      }
-    }
-
-    // Fallback: resolve the loading state even if INITIAL_SESSION fires late
+    // Fallback in case INITIAL_SESSION fires late or not at all
     supabase.auth.getSession().then(({ data: { session: sess } }) => {
       if (mounted) setSession(prev => prev === undefined ? sess : prev)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
       if (event === 'INITIAL_SESSION') {
-        // Returning user — already validated on previous sign-in, just restore session
         if (mounted) setSession(sess)
+
       } else if (event === 'SIGNED_IN') {
-        // Set session immediately for fast load, then verify access in background
         if (mounted) { setSession(sess); setAccessError(null) }
-        if (sess) {
-          const adminEmail = import.meta.env.VITE_ADMIN_EMAIL
-          if (sess.user.email !== adminEmail) {
-            const profile = await getMyProfile()
-            if (!profile) {
-              // New user — try to accept a pending invite
-              let token = localStorage.getItem('pendingInviteToken')
-              if (!token) token = await getMyPendingInvite()
-              if (token) {
-                const { success } = await acceptInvite(token)
-                if (success) localStorage.removeItem('pendingInviteToken')
-                else {
-                  await signOut()
-                  if (mounted) { setAccessError('not_invited'); setSession(null) }
-                  return
-                }
-              } else {
-                await signOut()
-                if (mounted) { setAccessError('not_invited'); setSession(null) }
-                return
-              }
-            } else if (profile.disabled) {
+
+        // Only run invite/profile check for brand-new logins, not session restorations
+        if (!sess || !isGenuineNewLogin(sess)) return
+
+        const adminEmail = import.meta.env.VITE_ADMIN_EMAIL
+        if (sess.user.email === adminEmail) {
+          if (mounted) requestNotificationPermission()
+          return
+        }
+
+        const profile = await getMyProfile()
+        if (profile) {
+          if (profile.disabled) {
+            await signOut()
+            if (mounted) { setAccessError('disabled'); setSession(null) }
+            return
+          }
+        } else {
+          // New user — accept pending invite
+          let token = localStorage.getItem('pendingInviteToken')
+          if (!token) token = await getMyPendingInvite()
+          if (token) {
+            const { success } = await acceptInvite(token)
+            if (success) {
+              localStorage.removeItem('pendingInviteToken')
+            } else {
               await signOut()
-              if (mounted) { setAccessError('disabled'); setSession(null) }
+              if (mounted) { setAccessError('not_invited'); setSession(null) }
               return
             }
+          } else {
+            await signOut()
+            if (mounted) { setAccessError('not_invited'); setSession(null) }
+            return
           }
-          if (mounted) requestNotificationPermission()
         }
+        if (mounted) requestNotificationPermission()
+
       } else if (event === 'SIGNED_OUT') {
         if (mounted) setSession(null)
-        // Don't clear accessError — it was set before signOut was called
+
       } else if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         if (mounted && sess) setSession(sess)
       }
