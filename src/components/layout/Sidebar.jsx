@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Search, FolderOpen, LogOut, Sun, Moon, X, MoreHorizontal, Pencil, Trash2, Check, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, Search, FolderOpen, LogOut, Sun, Moon, X, MoreHorizontal, Pencil, Trash2, Check, ShieldCheck, Plus } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { signOut } from '../../lib/auth'
 import { useTheme } from '../../lib/ThemeContext'
 import { useProjectsContext } from '../../lib/ProjectsContext'
 import { cn } from '../../lib/cn'
+import NewProjectModal from '../projects/NewProjectModal'
 
 function NavItem({ to, icon: Icon, label, end }) {
   return (
@@ -159,8 +160,9 @@ function ProjectItem({ project, onRename, onDelete }) {
 export default function Sidebar({ open, onClose, onSearchOpen }) {
   const { user } = useAuth()
   const { dark, toggle } = useTheme()
-  const { projects, updateProject, deleteProject } = useProjectsContext()
+  const { projects, createProject, updateProject, deleteProject } = useProjectsContext()
   const navigate = useNavigate()
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
 
   async function handleSignOut() {
     await signOut()
@@ -222,7 +224,14 @@ export default function Sidebar({ open, onClose, onSearchOpen }) {
           <div className="pt-5">
             <div className="flex items-center gap-1.5 px-3 mb-1.5">
               <FolderOpen size={11} className="text-slate-400 dark:text-slate-500" />
-              <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">Projects</p>
+              <p className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider flex-1">Projects</p>
+              <button
+                onClick={() => setNewProjectOpen(true)}
+                className="p-0.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="New project"
+              >
+                <Plus size={13} />
+              </button>
             </div>
             <div className="space-y-0.5">
               {projects.map(p => (
@@ -255,6 +264,18 @@ export default function Sidebar({ open, onClose, onSearchOpen }) {
           </div>
         </div>
       </aside>
+      <NewProjectModal
+        open={newProjectOpen}
+        onClose={() => setNewProjectOpen(false)}
+        onCreate={async (data) => {
+          const result = await createProject(data)
+          if (!result.error) {
+            setNewProjectOpen(false)
+            navigate(`/project/${result.data.id}`)
+          }
+          return result
+        }}
+      />
     </>
   )
 }

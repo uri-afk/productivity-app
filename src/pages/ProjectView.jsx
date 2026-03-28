@@ -21,6 +21,9 @@ export default function ProjectView() {
   const { projects, updateProject } = useProjectsContext()
   const project = projects.find(p => p.id === id)
   const navStateHandled = useRef(false)
+  const [renamingProject, setRenamingProject] = useState(false)
+  const [projectName, setProjectName] = useState('')
+  const renameInputRef = useRef(null)
 
   const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask } = useTasks(id)
   const { notes, loading: notesLoading, createNote, updateNote, deleteNote } = useNotes(id)
@@ -54,6 +57,18 @@ export default function ProjectView() {
     window.history.replaceState({}, '')
   }, [location.state, setActiveTab])
 
+  function startRenameProject() {
+    setProjectName(project.name)
+    setRenamingProject(true)
+    setTimeout(() => renameInputRef.current?.select(), 0)
+  }
+
+  async function commitRenameProject() {
+    const trimmed = projectName.trim()
+    if (trimmed && trimmed !== project.name) await updateProject(id, { name: trimmed })
+    setRenamingProject(false)
+  }
+
   if (!project) return null
 
   return (
@@ -72,7 +87,27 @@ export default function ProjectView() {
           {project.name[0]}
         </div>
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white truncate">{project.name}</h2>
+          {renamingProject ? (
+            <input
+              ref={renameInputRef}
+              value={projectName}
+              onChange={e => setProjectName(e.target.value)}
+              onBlur={commitRenameProject}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); commitRenameProject() }
+                if (e.key === 'Escape') { setRenamingProject(false) }
+              }}
+              className="text-base font-semibold text-slate-900 dark:text-white bg-transparent border-b border-blue-500 outline-none w-full"
+            />
+          ) : (
+            <h2
+              className="text-base font-semibold text-slate-900 dark:text-white truncate cursor-text hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              onClick={startRenameProject}
+              title="Click to rename"
+            >
+              {project.name}
+            </h2>
+          )}
           {project.description && (
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{project.description}</p>
           )}
