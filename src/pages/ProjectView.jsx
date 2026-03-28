@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useOutletContext, useNavigate, useLocation } from 'react-router-dom'
 import { useResizable } from '../hooks/useResizable'
 import { useTasks } from '../hooks/useTasks'
@@ -7,6 +7,8 @@ import { useProjectsContext } from '../lib/ProjectsContext'
 import TaskTableView from '../components/tasks/TaskTableView'
 import NoteListView from '../components/notes/NoteListView'
 import { cn } from '../lib/cn'
+
+const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ec4899', '#3b82f6', '#f97316', '#8b5cf6', '#14b8a6', '#ef4444', '#64748b']
 
 const TABS = [
   { id: 'tasks', label: 'Tasks' },
@@ -24,6 +26,15 @@ export default function ProjectView() {
   const [renamingProject, setRenamingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
   const renameInputRef = useRef(null)
+  const [colorPickerOpen, setColorPickerOpen] = useState(false)
+  const colorPickerRef = useRef(null)
+
+  useEffect(() => {
+    if (!colorPickerOpen) return
+    function handler(e) { if (!colorPickerRef.current?.contains(e.target)) setColorPickerOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [colorPickerOpen])
 
   const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask } = useTasks(id)
   const { notes, loading: notesLoading, createNote, updateNote, deleteNote } = useNotes(id)
@@ -81,10 +92,26 @@ export default function ProjectView() {
 
       {/* Project header */}
       <div className="flex items-center gap-3 mb-5">
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white text-sm font-bold"
-          style={{ backgroundColor: project.color ?? '#6366f1' }}>
-          {project.name[0]}
+        <div className="relative shrink-0" ref={colorPickerRef}>
+          <button
+            onClick={() => setColorPickerOpen(v => !v)}
+            title="Change color"
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold hover:opacity-80 transition-opacity"
+            style={{ backgroundColor: project.color ?? '#6366f1' }}>
+            {project.name[0]}
+          </button>
+          {colorPickerOpen && (
+            <div className="absolute top-full left-0 mt-1.5 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2.5 flex flex-wrap gap-2 w-[132px]">
+              {COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => { updateProject(id, { color: c }); setColorPickerOpen(false) }}
+                  className="w-6 h-6 rounded-full hover:scale-110 transition-transform"
+                  style={{ backgroundColor: c, outline: project.color === c ? `3px solid ${c}` : 'none', outlineOffset: '2px' }}
+                />
+              ))}
+            </div>
+          )}
         </div>
         <div className="min-w-0">
           {renamingProject ? (

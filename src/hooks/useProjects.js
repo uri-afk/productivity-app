@@ -26,10 +26,10 @@ export function useProjects() {
     return () => supabase.removeChannel(channel)
   }, [fetch])
 
-  const createProject = async ({ name, description = '' }) => {
+  const createProject = async ({ name, description = '', color = '#6366f1' }) => {
     const { data, error } = await supabase
       .from('projects')
-      .insert({ name, description, user_id: user.id })
+      .insert({ name, description, color, user_id: user.id })
       .select()
       .single()
     return { data, error }

@@ -29,10 +29,9 @@ export function useTasks(projectId) {
   }, [fetch, projectId])
 
   const createTask = async (fields) => {
-    // Strip columns that may not exist until SQL migration is run —
-    // they have DB defaults once added. They ARE kept in the optimistic
-    // task object so the UI shows the task in the correct section immediately.
-    const { section_id, subtasks, task_notes, ...coreFields } = fields
+    // Strip subtask/notes fields that live outside the main tasks table.
+    // section_id IS included so tasks are saved to the correct section.
+    const { subtasks, task_notes, ...coreFields } = fields
 
     // Optimistic: task appears instantly in the correct section
     const tempId = `_${Date.now()}`

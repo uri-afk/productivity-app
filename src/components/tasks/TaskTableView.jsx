@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Plus, ChevronRight, FileText, Check, X, Trash2 } from 'lucide-react'
+import { Plus, ChevronRight, FileText, Check, X, Trash2, FolderSymlink } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import NoteEditor from '../notes/NoteEditor'
 
@@ -102,6 +102,7 @@ function TableHeader() {
 // ── TaskRow ───────────────────────────────────────────────────────
 function TaskRow({
   task, isSubtask = false,
+  sections = [],
   activeCell, onSetActiveCell,
   onUpdate, onDelete,
   expandedSubtasks, onToggleExpand, onAddSubtask,
@@ -111,6 +112,7 @@ function TaskRow({
   const titleRef = useRef(null)
   const [statusOpen, setStatusOpen] = useState(false)
   const [priorityOpen, setPriorityOpen] = useState(false)
+  const [sectionOpen, setSectionOpen] = useState(false)
   const [tagInput, setTagInput] = useState('')
 
   const isActive = f => activeCell?.rowId === id && activeCell?.field === f
@@ -303,12 +305,32 @@ function TaskRow({
         </button>
       </td>
 
-      {/* Delete */}
-      <td className="w-6 py-2 pr-2">
-        <button onClick={() => onDelete(task.id)}
-          className="p-0.5 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-colors">
-          <X size={12} />
-        </button>
+      {/* Actions: move to section + delete */}
+      <td className="w-12 py-2 pr-2">
+        <div className="flex items-center gap-1 justify-end">
+          {!isSubtask && sections.length > 1 && (
+            <div className="relative">
+              <button
+                onClick={() => { onSetActiveCell({ rowId: id, field: 'section' }); setSectionOpen(true) }}
+                title="Move to section"
+                className="p-0.5 text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-colors">
+                <FolderSymlink size={12} />
+              </button>
+              {isActive('section') && sectionOpen && (
+                <SelectPopup
+                  options={sections.map(s => ({ value: s.id, label: s.name, color: '#6366f1' }))}
+                  value={task.section_id ?? 'general'}
+                  onChange={val => { onUpdate(id, { section_id: val }) }}
+                  onClose={() => { setSectionOpen(false); onSetActiveCell(null) }}
+                />
+              )}
+            </div>
+          )}
+          <button onClick={() => onDelete(task.id)}
+            className="p-0.5 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-colors">
+            <X size={12} />
+          </button>
+        </div>
       </td>
     </tr>
   )
@@ -377,14 +399,14 @@ function TableColgroup() {
       <col style={{ width: 96 }} />
       <col style={{ width: 144 }} />
       <col style={{ width: 80 }} />
-      <col style={{ width: 24 }} />
+      <col style={{ width: 48 }} />
     </colgroup>
   )
 }
 
 // ── TaskSection ───────────────────────────────────────────────────
 function TaskSection({
-  section, tasks, collapsed, onToggleCollapse,
+  section, tasks, allSections, collapsed, onToggleCollapse,
   renaming, onStartRename, onRename, canDelete, onDelete,
   onCreate, onUpdate, onDeleteTask, onOpenNotes, isFirst,
 }) {
@@ -501,6 +523,7 @@ function TaskSection({
                 <React.Fragment key={task.id}>
                   <TaskRow
                     task={task}
+                    sections={allSections}
                     activeCell={activeCell}
                     onSetActiveCell={setActiveCell}
                     onUpdate={onUpdate}
@@ -598,6 +621,7 @@ function TaskSection({
                       <TaskRow
                         key={task.id}
                         task={task}
+                        sections={allSections}
                         activeCell={activeCell}
                         onSetActiveCell={setActiveCell}
                         onUpdate={onUpdate}
@@ -676,6 +700,7 @@ export default function TaskTableView({ tasks, project, onCreateTask, onUpdateTa
           key={section.id}
           section={section}
           tasks={tasks.filter(t => (t.section_id ?? 'general') === section.id)}
+          allSections={sections}
           collapsed={collapsedSections.has(section.id)}
           onToggleCollapse={() => toggleSection(section.id)}
           renaming={renamingSection === section.id}
