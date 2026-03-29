@@ -419,11 +419,16 @@ function MobileTaskRow({ task, isSubtask = false, onUpdate, onDelete, onOpenNote
   const [editing, setEditing] = useState(false)
   const [titleVal, setTitleVal] = useState(task.title)
   const [expanded, setExpanded] = useState(false)
+  const [statusOpen, setStatusOpen] = useState(false)
+  const [priorityOpen, setPriorityOpen] = useState(false)
+  const [dateOpen, setDateOpen] = useState(false)
   const inputRef = useRef(null)
+  const dateRef = useRef(null)
   const done = task.status === 'done'
   const hasSubtasks = (task.subtasks ?? []).length > 0
 
   useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+  useEffect(() => { if (dateOpen) dateRef.current?.focus() }, [dateOpen])
 
   function commitTitle() { onUpdate(task.id, { title: titleVal }); setEditing(false) }
 
@@ -462,9 +467,53 @@ function MobileTaskRow({ task, isSubtask = false, onUpdate, onDelete, onOpenNote
             </span>
           )}
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <StatusBadge value={task.status} />
-            {task.due_date && <span className="text-xs text-slate-500 dark:text-slate-400">{task.due_date}</span>}
-            <PriorityBadge value={task.priority} />
+            {/* Tappable status */}
+            <div className="relative">
+              <button onClick={() => setStatusOpen(v => !v)}>
+                <StatusBadge value={task.status} />
+              </button>
+              {statusOpen && (
+                <SelectPopup
+                  options={STATUS_OPTIONS} value={task.status}
+                  onChange={val => { onUpdate(task.id, { status: val }); setStatusOpen(false) }}
+                  onClose={() => setStatusOpen(false)}
+                  upward alignRight={false}
+                />
+              )}
+            </div>
+
+            {/* Tappable due date */}
+            <div className="relative">
+              {dateOpen ? (
+                <input ref={dateRef} type="date"
+                  defaultValue={task.due_date ?? ''}
+                  onBlur={e => { onUpdate(task.id, { due_date: e.target.value || null }); setDateOpen(false) }}
+                  onChange={e => { onUpdate(task.id, { due_date: e.target.value || null }); setDateOpen(false) }}
+                  className="text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 outline-none text-slate-700 dark:text-slate-300"
+                />
+              ) : (
+                <button onClick={() => setDateOpen(true)}
+                  className="text-xs text-slate-500 dark:text-slate-400 border border-transparent hover:border-slate-300 rounded px-1 py-0.5 transition-colors">
+                  {task.due_date || <span className="text-slate-300 dark:text-slate-600">+ date</span>}
+                </button>
+              )}
+            </div>
+
+            {/* Tappable priority */}
+            <div className="relative">
+              <button onClick={() => setPriorityOpen(v => !v)}>
+                <PriorityBadge value={task.priority} />
+              </button>
+              {priorityOpen && (
+                <SelectPopup
+                  options={PRIORITY_OPTIONS} value={task.priority}
+                  onChange={val => { onUpdate(task.id, { priority: val }); setPriorityOpen(false) }}
+                  onClose={() => setPriorityOpen(false)}
+                  upward alignRight={false}
+                />
+              )}
+            </div>
+
             {(task.tags ?? []).map(tag => (
               <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{tag}</span>
             ))}
