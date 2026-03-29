@@ -244,7 +244,28 @@ function Cell({ value, col, onChange }) {
   }
 
   if (type === 'date') return <input type="date" value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200" />
-  if (type === 'number') return <input type="number" value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 text-right" />
+  if (type === 'number') {
+    const [editing, setEditing] = useState(false)
+    const formatted = value !== '' && value != null && !isNaN(Number(value))
+      ? Number(value).toLocaleString()
+      : (value ?? '')
+    return editing ? (
+      <input
+        type="number"
+        autoFocus
+        defaultValue={value ?? ''}
+        onBlur={e => { onChange(e.target.value); setEditing(false) }}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur() }}
+        className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 text-right"
+      />
+    ) : (
+      <div
+        onClick={() => setEditing(true)}
+        className="w-full text-sm text-slate-800 dark:text-slate-200 text-right cursor-text min-h-[1.25rem]">
+        {formatted || <span className="text-slate-300 dark:text-slate-600">—</span>}
+      </div>
+    )
+  }
   // Text and URL: textarea that grows to fit content
   const taRef = useRef(null)
   useEffect(() => {
