@@ -55,8 +55,7 @@ function ContextMenu({ menuRef, anchor, onRename, onDelete, onClose }) {
   )
 }
 
-function ProjectItem({ project, onRename, onDelete }) {
-  const [hovered, setHovered] = useState(false)
+function ProjectItem({ project, onRename, onDelete, onNavigate }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState(null) // null = dot-button, {x,y} = right-click
   const [renaming, setRenaming] = useState(false)
@@ -114,16 +113,13 @@ function ProjectItem({ project, onRename, onDelete }) {
   return (
     <div
       className="relative"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       onContextMenu={handleContextMenu}
     >
       <NavLink
         to={`/project/${project.id}`}
+        onClick={onNavigate}
         className={({ isActive }) => cn(
-          'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
-          // leave room for the ⋯ button when hovered
-          (hovered || menuOpen) ? 'pr-8' : 'pr-3',
+          'flex items-center gap-2.5 px-3 py-2 pr-8 rounded-lg text-sm transition-colors',
           isActive
             ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white'
             : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
@@ -133,15 +129,13 @@ function ProjectItem({ project, onRename, onDelete }) {
         <span className="flex-1 truncate">{project.name}</span>
       </NavLink>
 
-      {/* ⋯ button — shown via React state, not CSS group-hover */}
-      {(hovered || menuOpen) && (
-        <button
-          onClick={e => { e.preventDefault(); e.stopPropagation(); openMenu(null) }}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-        >
-          <MoreHorizontal size={13} />
-        </button>
-      )}
+      {/* ⋯ button — always visible so it works on touch */}
+      <button
+        onClick={e => { e.preventDefault(); e.stopPropagation(); openMenu(null) }}
+        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+      >
+        <MoreHorizontal size={13} />
+      </button>
 
       {/* Dropdown menu */}
       {menuOpen && (
@@ -237,7 +231,7 @@ export default function Sidebar({ open, onClose, onSearchOpen }) {
             </div>
             <div className="space-y-0.5">
               {projects.map(p => (
-                <ProjectItem key={p.id} project={p} onRename={handleRename} onDelete={handleDelete} />
+                <ProjectItem key={p.id} project={p} onRename={handleRename} onDelete={handleDelete} onNavigate={onClose} />
               ))}
               {projects.length === 0 && (
                 <p className="px-3 py-2 text-xs text-slate-400 dark:text-slate-600 italic">No projects yet</p>
