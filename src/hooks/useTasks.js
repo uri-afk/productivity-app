@@ -52,13 +52,17 @@ export function useTasks(projectId) {
     }
     setTasks(prev => [...prev, optimistic])
 
+    // 'general' is a UI sentinel — store null in DB, filter logic handles it
+    const dbFields = { ...coreFields }
+    if (dbFields.section_id === 'general') dbFields.section_id = null
+
     const { data, error } = await supabase
       .from('tasks')
       .insert({
         status: 'todo',
         priority: 'medium',
         tags: [],
-        ...coreFields,
+        ...dbFields,
         project_id: projectId,
         user_id: user.id,
       })
@@ -66,8 +70,8 @@ export function useTasks(projectId) {
       .single()
 
     if (data) {
-      // Merge real DB row with the local section/subtask fields (DB may not have them yet)
-      setTasks(prev => prev.map(t => t.id === tempId ? { ...optimistic, ...data } : t))
+      // Preserve local section_id (DB returns null for 'general')
+      setTasks(prev => prev.map(t => t.id === tempId ? { ...optimistic, ...data, section_id: optimistic.section_id } : t))
     } else {
       // Insert failed — remove optimistic task
       setTasks(prev => prev.filter(t => t.id !== tempId))
@@ -77,7 +81,9 @@ export function useTasks(projectId) {
 
   const updateTask = async (id, updates) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
-    const { error } = await supabase.from('tasks').update(updates).eq('id', id)
+    const dbUpdates = { ...updates }
+    if ('section_id' in dbUpdates && dbUpdates.section_id === 'general') dbUpdates.section_id = null
+    const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id)
     if (error) fetch()
     return { error }
   }

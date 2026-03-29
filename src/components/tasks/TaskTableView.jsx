@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Plus, ChevronRight, FileText, Check, X, Trash2, FolderSymlink } from 'lucide-react'
+import { Plus, ChevronRight, FileText, Check, X, Trash2, FolderSymlink, GripVertical } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import NoteEditor from '../notes/NoteEditor'
 
@@ -36,7 +36,7 @@ function PriorityBadge({ value }) {
   )
 }
 
-function SelectPopup({ options, value, onChange, onClose }) {
+function SelectPopup({ options, value, onChange, onClose, upward = false, alignRight = false }) {
   const ref = useRef(null)
   useEffect(() => {
     function handler(e) { if (!ref.current?.contains(e.target)) onClose() }
@@ -45,7 +45,11 @@ function SelectPopup({ options, value, onChange, onClose }) {
   }, [onClose])
   return (
     <div ref={ref}
-      className="absolute z-50 top-full left-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 min-w-[150px]">
+      className={cn(
+        'absolute z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 min-w-[150px]',
+        upward ? 'bottom-full mb-1' : 'top-full mt-1',
+        alignRight ? 'right-0 left-auto' : 'left-0',
+      )}>
       {options.map(opt => (
         <button key={opt.value}
           onMouseDown={e => { e.preventDefault(); onChange(opt.value); onClose() }}
@@ -59,6 +63,11 @@ function SelectPopup({ options, value, onChange, onClose }) {
       ))}
     </div>
   )
+}
+
+function popupDir(e) {
+  const r = e.currentTarget.getBoundingClientRect()
+  return { upward: window.innerHeight - r.bottom < 160, alignRight: window.innerWidth - r.right < 160 }
 }
 
 // ── Task notes side panel (wraps NoteEditor) ──────────────────────
@@ -107,12 +116,16 @@ function TaskRow({
   onUpdate, onDelete,
   expandedSubtasks, onToggleExpand, onAddSubtask,
   onOpenNotes, onEnterPressed,
+  onDragStart, onDragEnd,
 }) {
   const id = task.id
   const titleRef = useRef(null)
   const [statusOpen, setStatusOpen] = useState(false)
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [sectionOpen, setSectionOpen] = useState(false)
+  const [statusDir, setStatusDir] = useState({ upward: false, alignRight: false })
+  const [priorityDir, setPriorityDir] = useState({ upward: false, alignRight: false })
+  const [sectionDir, setSectionDir] = useState({ upward: false, alignRight: false })
   const [tagInput, setTagInput] = useState('')
 
   const isActive = f => activeCell?.rowId === id && activeCell?.field === f
@@ -145,20 +158,31 @@ function TaskRow({
   }
 
   return (
-    <tr data-task-id={id} className={cn(
-      'group/row border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/20',
-      done && 'opacity-50'
-    )}>
-      {/* Checkbox */}
+    <tr
+      data-task-id={id}
+      draggable={!isSubtask}
+      onDragStart={!isSubtask ? (e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart?.(id) } : undefined}
+      onDragEnd={!isSubtask ? () => onDragEnd?.() : undefined}
+      className={cn(
+        'group/row border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/20',
+        done && 'opacity-50',
+        !isSubtask && 'cursor-grab active:cursor-grabbing'
+      )}>
+      {/* Checkbox + drag grip */}
       <td className="w-8 px-2 py-2">
-        <button
-          onClick={() => onUpdate(id, { status: done ? 'todo' : 'done' })}
-          className={cn(
-            'w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
-            done ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
-          )}>
-          {done && <Check size={9} className="text-white" strokeWidth={3} />}
-        </button>
+        <div className="flex items-center gap-1">
+          {!isSubtask && (
+            <GripVertical size={11} className="text-slate-300 dark:text-slate-600 opacity-0 group-hover/row:opacity-100 shrink-0 -ml-1" />
+          )}
+          <button
+            onClick={() => onUpdate(id, { status: done ? 'todo' : 'done' })}
+            className={cn(
+              'w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+              done ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
+            )}>
+            {done && <Check size={9} className="text-white" strokeWidth={3} />}
+          </button>
+        </div>
       </td>
 
       {/* Subtask toggle / add */}
@@ -203,7 +227,7 @@ function TaskRow({
       {/* Status */}
       <td className="w-28 px-2 py-2 relative">
         <div className="cursor-pointer"
-          onClick={() => { onSetActiveCell({ rowId: id, field: 'status' }); setStatusOpen(true) }}>
+          onClick={(e) => { setStatusDir(popupDir(e)); onSetActiveCell({ rowId: id, field: 'status' }); setStatusOpen(true) }}>
           <StatusBadge value={task.status} />
         </div>
         {isActive('status') && statusOpen && (
@@ -211,6 +235,7 @@ function TaskRow({
             options={STATUS_OPTIONS} value={task.status}
             onChange={val => onUpdate(id, { status: val })}
             onClose={() => { setStatusOpen(false); onSetActiveCell(null) }}
+            upward={statusDir.upward} alignRight={statusDir.alignRight}
           />
         )}
       </td>
@@ -239,7 +264,7 @@ function TaskRow({
       {/* Priority */}
       <td className="w-24 px-2 py-2 relative">
         <div className="cursor-pointer"
-          onClick={() => { onSetActiveCell({ rowId: id, field: 'priority' }); setPriorityOpen(true) }}>
+          onClick={(e) => { setPriorityDir(popupDir(e)); onSetActiveCell({ rowId: id, field: 'priority' }); setPriorityOpen(true) }}>
           <PriorityBadge value={task.priority} />
         </div>
         {isActive('priority') && priorityOpen && (
@@ -247,6 +272,7 @@ function TaskRow({
             options={PRIORITY_OPTIONS} value={task.priority}
             onChange={val => onUpdate(id, { priority: val })}
             onClose={() => { setPriorityOpen(false); onSetActiveCell(null) }}
+            upward={priorityDir.upward} alignRight={priorityDir.alignRight}
           />
         )}
       </td>
@@ -311,7 +337,7 @@ function TaskRow({
           {!isSubtask && sections.length > 1 && (
             <div className="relative">
               <button
-                onClick={() => { onSetActiveCell({ rowId: id, field: 'section' }); setSectionOpen(true) }}
+                onClick={(e) => { setSectionDir(popupDir(e)); onSetActiveCell({ rowId: id, field: 'section' }); setSectionOpen(true) }}
                 title="Move to section"
                 className="p-0.5 text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-colors">
                 <FolderSymlink size={12} />
@@ -322,6 +348,7 @@ function TaskRow({
                   value={task.section_id ?? 'general'}
                   onChange={val => { onUpdate(id, { section_id: val }) }}
                   onClose={() => { setSectionOpen(false); onSetActiveCell(null) }}
+                  upward={sectionDir.upward} alignRight={sectionDir.alignRight}
                 />
               )}
             </div>
@@ -409,12 +436,14 @@ function TaskSection({
   section, tasks, allSections, collapsed, onToggleCollapse,
   renaming, onStartRename, onRename, canDelete, onDelete,
   onCreate, onUpdate, onDeleteTask, onOpenNotes, isFirst,
+  draggingTaskId, onDragStart, onDragEnd, onDropTask,
 }) {
   const [activeCell, setActiveCell] = useState(null)
   const [expandedSubtasks, setExpandedSubtasks] = useState(new Set())
   const [addingTask, setAddingTask] = useState(false)
   const [showCompleted, setShowCompleted] = useState(false)
   const [renameVal, setRenameVal] = useState(section.name)
+  const [dragOver, setDragOver] = useState(false)
   const renameRef = useRef(null)
 
   useEffect(() => {
@@ -476,7 +505,12 @@ function TaskSection({
   const completedTasks = tasks.filter(t => t.status === 'done')
 
   return (
-    <div>
+    <div
+      onDragOver={draggingTaskId ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) } : undefined}
+      onDragLeave={draggingTaskId ? () => setDragOver(false) : undefined}
+      onDrop={draggingTaskId ? (e) => { e.preventDefault(); setDragOver(false); onDropTask?.(draggingTaskId, section.id) } : undefined}
+      className={cn(dragOver && 'ring-2 ring-blue-400 ring-inset rounded-xl')}
+    >
       {/* Section header */}
       <div className="flex items-center gap-2 mb-2 group/sec">
         <button onClick={onToggleCollapse} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors shrink-0">
@@ -533,6 +567,8 @@ function TaskSection({
                     onAddSubtask={handleAddSubtask}
                     onOpenNotes={onOpenNotes}
                     onEnterPressed={() => { setAddingTask(true); setActiveCell(null) }}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
                   />
                   {expandedSubtasks.has(task.id) && (() => {
                     const allSubs = task.subtasks ?? []
@@ -631,6 +667,8 @@ function TaskSection({
                         onAddSubtask={handleAddSubtask}
                         onOpenNotes={onOpenNotes}
                         onEnterPressed={() => {}}
+                        onDragStart={onDragStart}
+                        onDragEnd={onDragEnd}
                       />
                     ))}
                   </tbody>
@@ -649,6 +687,7 @@ export default function TaskTableView({ tasks, project, onCreateTask, onUpdateTa
   const sections = project?.task_sections ?? [{ id: 'general', name: 'General' }]
   const [collapsedSections, setCollapsedSections] = useState(new Set())
   const [renamingSection, setRenamingSection] = useState(null)
+  const [draggingTaskId, setDraggingTaskId] = useState(null)
 
   // Scroll to and briefly flash the highlighted task
   useEffect(() => {
@@ -713,6 +752,13 @@ export default function TaskTableView({ tasks, project, onCreateTask, onUpdateTa
           onDeleteTask={onDeleteTask}
           onOpenNotes={(task, onSaveContent) => setNotePanel({ task, onSaveContent })}
           isFirst={idx === 0}
+          draggingTaskId={draggingTaskId}
+          onDragStart={(taskId) => setDraggingTaskId(taskId)}
+          onDragEnd={() => setDraggingTaskId(null)}
+          onDropTask={(taskId, targetSectionId) => {
+            setDraggingTaskId(null)
+            onUpdateTask(taskId, { section_id: targetSectionId })
+          }}
         />
       ))}
 
