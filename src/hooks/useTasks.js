@@ -44,7 +44,7 @@ export function useTasks(projectId) {
       due_date: null,
       subtasks: [],
       task_notes: null,
-      section_id: section_id ?? 'general',
+      section_id: fields.section_id ?? 'general',
       project_id: projectId,
       created_at: new Date().toISOString(),
       ...fields,    // apply all passed fields
