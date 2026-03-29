@@ -245,15 +245,21 @@ function Cell({ value, col, onChange }) {
 
   if (type === 'date') return <input type="date" value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200" />
   if (type === 'number') return <input type="number" value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 text-right" />
-  // Text and URL: use textarea so content wraps and grows with text
+  // Text and URL: textarea that grows to fit content
+  const taRef = useRef(null)
+  useEffect(() => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [value])
   return (
     <textarea
+      ref={taRef}
       value={value ?? ''}
       onChange={e => onChange(e.target.value)}
       rows={1}
       className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 resize-none overflow-hidden leading-snug"
-      style={{ fieldSizing: 'content' }}
-      onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
     />
   )
 }
