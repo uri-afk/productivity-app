@@ -5,7 +5,7 @@ import { useProjectsContext } from '../lib/ProjectsContext'
 import { useAllTasks } from '../hooks/useAllTasks'
 import { formatDueDate, dueDateStatus } from '../lib/dates'
 import { cn } from '../lib/cn'
-import { parseISO, isValid, isThisWeek, startOfDay } from 'date-fns'
+import { parseISO, isValid, startOfDay, addDays } from 'date-fns'
 import { checkAndNotifyDueTasks } from '../lib/notifications'
 
 const PRIORITY_COLORS = {
@@ -14,7 +14,7 @@ const PRIORITY_COLORS = {
   low:    { bg: '#6b728020', text: '#6b7280' },
 }
 const FILTERS = [
-  { id: 'week', label: 'This week' },
+  { id: 'week', label: 'Next 7 days' },
   { id: 'today', label: 'Today' },
   { id: 'all', label: 'All' },
 ]
@@ -26,7 +26,11 @@ function filterTask(task, filter) {
   const status = dueDateStatus(task.due_date)
   if (status === 'overdue') return true // always show overdue
   if (filter === 'today') return status === 'today'
-  if (filter === 'week') return isThisWeek(d, { weekStartsOn: 1 }) || status === 'today'
+  if (filter === 'week') {
+    const today = startOfDay(new Date())
+    const in7 = addDays(today, 7)
+    return d >= today && d <= in7
+  }
   return true // 'all'
 }
 
