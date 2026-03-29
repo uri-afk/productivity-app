@@ -169,18 +169,84 @@ function ColTypeMenu({ col, onChangeType, onClose }) {
 }
 
 // ── Cell ─────────────────────────────────────────────────────────────
+function MultiSelectCell({ value, opts, onChange }) {
+  const selected = Array.isArray(value) ? value : (value ? String(value).split(',').map(s => s.trim()).filter(Boolean) : [])
+  const [newTag, setNewTag] = useState('')
+  function addTag() {
+    const t = newTag.trim()
+    if (!t || selected.includes(t)) { setNewTag(''); return }
+    onChange([...selected, t])
+    setNewTag('')
+  }
+  return (
+    <div className="flex flex-wrap gap-1 items-center">
+      {opts.map(o => {
+        const on = selected.includes(o.label)
+        return (
+          <button key={o.id} type="button"
+            onClick={() => onChange(on ? selected.filter(s => s !== o.label) : [...selected, o.label])}
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium transition-all"
+            style={on
+              ? { backgroundColor: o.color + '20', color: o.color, border: `1px solid ${o.color}50` }
+              : { backgroundColor: 'transparent', color: '#9ca3af', border: '1px solid #e2e8f0' }
+            }>{o.label}</button>
+        )
+      })}
+      {selected.filter(s => !opts.find(o => o.label === s)).map(s => (
+        <span key={s} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+          {s}
+          <button type="button" onClick={() => onChange(selected.filter(x => x !== s))} className="hover:text-red-500"><X size={8} /></button>
+        </span>
+      ))}
+      <input value={newTag} onChange={e => setNewTag(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() } }}
+        onBlur={addTag} placeholder="+ tag"
+        className="text-xs bg-transparent outline-none text-slate-500 dark:text-slate-400 placeholder-slate-300 w-12 min-w-0" />
+    </div>
+  )
+}
+
+function NumberCell({ value, onChange }) {
+  const [editing, setEditing] = useState(false)
+  const formatted = value !== '' && value != null && !isNaN(Number(value))
+    ? Number(value).toLocaleString() : (value ?? '')
+  return editing ? (
+    <input type="number" autoFocus defaultValue={value ?? ''}
+      onBlur={e => { onChange(e.target.value); setEditing(false) }}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur() }}
+      className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 text-right" />
+  ) : (
+    <div onClick={() => setEditing(true)}
+      className="w-full text-sm text-slate-800 dark:text-slate-200 text-right cursor-text min-h-[1.25rem]">
+      {formatted || <span className="text-slate-300 dark:text-slate-600">—</span>}
+    </div>
+  )
+}
+
+function TextCell({ value, onChange, type }) {
+  const taRef = useRef(null)
+  useEffect(() => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [value])
+  return (
+    <textarea ref={taRef} value={value ?? ''} onChange={e => onChange(e.target.value)}
+      rows={1}
+      className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 resize-none overflow-hidden leading-snug" />
+  )
+}
+
 function Cell({ value, col, onChange }) {
   const { type, options = [] } = col
   const opts = normalizeOptions(options)
 
-  if (type === 'checkbox') {
-    return (
-      <div className="flex justify-center">
-        <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} className="w-4 h-4 cursor-pointer accent-blue-600" />
-      </div>
-    )
-  }
-
+  if (type === 'checkbox') return (
+    <div className="flex justify-center">
+      <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} className="w-4 h-4 cursor-pointer accent-blue-600" />
+    </div>
+  )
   if (type === 'select') {
     const selected = opts.find(o => o.label === value)
     return (
@@ -194,95 +260,15 @@ function Cell({ value, col, onChange }) {
           {selected
             ? <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium"
                 style={{ backgroundColor: selected.color + '20', color: selected.color }}>{selected.label}</span>
-            : <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>
-          }
+            : <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>}
         </div>
       </div>
     )
   }
-
-  if (type === 'multiselect') {
-    const selected = Array.isArray(value) ? value : (value ? String(value).split(',').map(s => s.trim()).filter(Boolean) : [])
-    const [newTag, setNewTag] = useState('')
-    function addTag() {
-      const t = newTag.trim()
-      if (!t || selected.includes(t)) { setNewTag(''); return }
-      onChange([...selected, t])
-      setNewTag('')
-    }
-    return (
-      <div className="flex flex-wrap gap-1 items-center">
-        {opts.map(o => {
-          const on = selected.includes(o.label)
-          return (
-            <button key={o.id} type="button"
-              onClick={() => onChange(on ? selected.filter(s => s !== o.label) : [...selected, o.label])}
-              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium transition-all"
-              style={on
-                ? { backgroundColor: o.color + '20', color: o.color, border: `1px solid ${o.color}50` }
-                : { backgroundColor: 'transparent', color: '#9ca3af', border: '1px solid #e2e8f0' }
-              }>{o.label}</button>
-          )
-        })}
-        {/* Free-text tag entry */}
-        {selected.filter(s => !opts.find(o => o.label === s)).map(s => (
-          <span key={s} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-            {s}
-            <button type="button" onClick={() => onChange(selected.filter(x => x !== s))} className="hover:text-red-500"><X size={8} /></button>
-          </span>
-        ))}
-        <input
-          value={newTag}
-          onChange={e => setNewTag(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() } }}
-          onBlur={addTag}
-          placeholder="+ tag"
-          className="text-xs bg-transparent outline-none text-slate-500 dark:text-slate-400 placeholder-slate-300 w-12 min-w-0"
-        />
-      </div>
-    )
-  }
-
+  if (type === 'multiselect') return <MultiSelectCell value={value} opts={opts} onChange={onChange} />
   if (type === 'date') return <input type="date" value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200" />
-  if (type === 'number') {
-    const [editing, setEditing] = useState(false)
-    const formatted = value !== '' && value != null && !isNaN(Number(value))
-      ? Number(value).toLocaleString()
-      : (value ?? '')
-    return editing ? (
-      <input
-        type="number"
-        autoFocus
-        defaultValue={value ?? ''}
-        onBlur={e => { onChange(e.target.value); setEditing(false) }}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur() }}
-        className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 text-right"
-      />
-    ) : (
-      <div
-        onClick={() => setEditing(true)}
-        className="w-full text-sm text-slate-800 dark:text-slate-200 text-right cursor-text min-h-[1.25rem]">
-        {formatted || <span className="text-slate-300 dark:text-slate-600">—</span>}
-      </div>
-    )
-  }
-  // Text and URL: textarea that grows to fit content
-  const taRef = useRef(null)
-  useEffect(() => {
-    const el = taRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
-  }, [value])
-  return (
-    <textarea
-      ref={taRef}
-      value={value ?? ''}
-      onChange={e => onChange(e.target.value)}
-      rows={1}
-      className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 resize-none overflow-hidden leading-snug"
-    />
-  )
+  if (type === 'number') return <NumberCell value={value} onChange={onChange} />
+  return <TextCell value={value} onChange={onChange} type={type} />
 }
 
 // ── TableGrid ────────────────────────────────────────────────────────
