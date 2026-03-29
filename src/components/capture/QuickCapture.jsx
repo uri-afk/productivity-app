@@ -23,7 +23,7 @@ function buildNoteContent(body, uploaded) {
   return html
 }
 
-export default function QuickCapture({ open, onClose }) {
+export default function QuickCapture({ open, onClose, defaults = null }) {
   const { user } = useAuth()
   const { projects } = useProjectsContext()
   const navigate = useNavigate()
@@ -52,11 +52,17 @@ export default function QuickCapture({ open, onClose }) {
   // Reset on open
   useEffect(() => {
     if (!open) return
-    setTitle(''); setType('task'); setSectionId('general')
+    setTitle(''); setSectionId('general')
     setBody(''); setPending([]); setSaving(false)
-    if (projects.length > 0) setProjectId(projects[0].id)
+    setType(defaults?.type === 'note' ? 'note' : 'task')
+    if (defaults?.projectName) {
+      const match = projects.find(p => p.name.toLowerCase() === defaults.projectName.toLowerCase())
+      setProjectId(match ? match.id : (projects[0]?.id ?? ''))
+    } else if (projects.length > 0) {
+      setProjectId(projects[0].id)
+    }
     setTimeout(() => titleRef.current?.focus(), 50)
-  }, [open, projects])
+  }, [open, projects, defaults])
 
   useEffect(() => { setSectionId('general') }, [projectId, type])
 

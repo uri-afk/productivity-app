@@ -8,6 +8,7 @@ import AdminPage from './pages/AdminPage'
 import AppShell from './components/layout/AppShell'
 import Dashboard from './pages/Dashboard'
 import ProjectView from './pages/ProjectView'
+import CapturePage from './pages/CapturePage'
 
 function Spinner() {
   return (
@@ -56,6 +57,7 @@ export default function App() {
                 <Route path="/dashboard"   element={<Dashboard />} />
                 <Route path="/project/:id" element={<ProjectView />} />
                 <Route path="/search"      element={<Navigate to="/dashboard" replace />} />
+                <Route path="/capture"     element={<CapturePage />} />
                 <Route path="/admin"       element={<AdminPage />} />
               </Route>
             </Route>

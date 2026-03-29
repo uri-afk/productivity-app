@@ -13,6 +13,7 @@ export default function AppShell() {
   const [activeTab, setActiveTab] = useState('tasks')
   const [searchOpen, setSearchOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
+  const [captureDefaults, setCaptureDefaults] = useState(null)
   const newHandlerRef = useRef(null)
   const navigate = useNavigate()
   const online = useOnlineStatus()
@@ -64,7 +65,7 @@ export default function AppShell() {
         )}
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-safe-bottom">
-          <Outlet context={{ activeTab, setActiveTab, registerNewHandler, onNotificationNavigate: handleNotificationNavigate }} />
+          <Outlet context={{ activeTab, setActiveTab, registerNewHandler, onNotificationNavigate: handleNotificationNavigate, openCapture: (defaults) => { setCaptureDefaults(defaults); setCaptureOpen(true) } }} />
         </main>
       </div>
 
@@ -78,7 +79,8 @@ export default function AppShell() {
 
       <QuickCapture
         open={captureOpen}
-        onClose={() => setCaptureOpen(false)}
+        onClose={() => { setCaptureOpen(false); setCaptureDefaults(null) }}
+        defaults={captureDefaults}
       />
     </div>
   )
