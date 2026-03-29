@@ -817,7 +817,8 @@ export default function NoteEditor({ note, onClose, onUpdate, inline = false }) 
   const panelContent = (
     <>
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-5 h-11 border-b border-slate-200 dark:border-slate-800 shrink-0">
+      <div className="flex items-center justify-between px-5 border-b border-slate-200 dark:border-slate-800 shrink-0"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)', minHeight: 'calc(2.75rem + env(safe-area-inset-top, 0px))' }}>
         <SavedIndicator status={saveStatus} />
         <button onClick={onClose}
           className="ml-auto p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">

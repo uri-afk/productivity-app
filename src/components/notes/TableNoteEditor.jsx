@@ -69,7 +69,8 @@ export default function TableNoteEditor({ note, onClose, onUpdate }) {
           className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10" />
 
         {/* Top bar */}
-        <div className="flex items-center justify-between px-5 h-11 border-b border-slate-200 dark:border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 border-b border-slate-200 dark:border-slate-800 shrink-0"
+          style={{ paddingTop: 'env(safe-area-inset-top, 0px)', minHeight: 'calc(2.75rem + env(safe-area-inset-top, 0px))' }}>
           {saved
             ? <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400"><Check size={12} /> Saved</span>
             : <span />

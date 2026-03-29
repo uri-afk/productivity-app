@@ -87,7 +87,8 @@ export default function TaskNoteEditorPanel({ note, onBack, onSave }) {
           className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 border-b border-slate-200 dark:border-slate-800 shrink-0"
+          style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))', paddingBottom: '1rem' }}>
           <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
             <ArrowLeft size={15} /> Back to task
           </button>
