@@ -195,7 +195,8 @@ export default function Sidebar({ open, onClose, onSearchOpen }) {
         open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}>
         {/* Header */}
-        <div className="h-14 px-4 flex items-center justify-between shrink-0 border-b border-slate-200 dark:border-slate-800">
+        <div className="shrink-0 border-b border-slate-200 dark:border-slate-800" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div className="h-14 px-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
               <span className="text-white text-xs font-bold">P</span>
@@ -205,6 +206,7 @@ export default function Sidebar({ open, onClose, onSearchOpen }) {
           <button onClick={onClose} className="lg:hidden p-1.5 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <X size={16} />
           </button>
+        </div>
         </div>
 
         {/* Nav */}

@@ -15,7 +15,9 @@ export default function TopNav({ onMenuClick, onNew }) {
   const title = usePageTitle()
 
   return (
-    <header className="h-14 shrink-0 flex items-center gap-3 px-4 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+    <header className="shrink-0 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+    <div className="h-14 flex items-center gap-3 px-4">
       <button
         onClick={onMenuClick}
         className="lg:hidden p-1.5 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -30,6 +32,7 @@ export default function TopNav({ onMenuClick, onNew }) {
         <Plus size={14} strokeWidth={2.5} />
         <span className="hidden sm:inline">New</span>
       </button>
+    </div>
     </header>
   )
 }

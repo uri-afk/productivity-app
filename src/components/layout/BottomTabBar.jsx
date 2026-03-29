@@ -2,33 +2,31 @@ import { NavLink } from 'react-router-dom'
 import { LayoutDashboard, FolderOpen, Plus } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
-const TABS = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-  { to: '/project',   icon: FolderOpen,      label: 'Projects' },
-]
-
-export default function BottomTabBar({ onCapture }) {
+export default function BottomTabBar({ onCapture, onProjects }) {
   return (
     <nav
       className="lg:hidden fixed bottom-0 inset-x-0 z-10 flex flex-col bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800"
     >
       <div className="flex items-center h-16">
-        {TABS.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/dashboard'}
-            className={({ isActive }) => cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 h-full min-h-[44px] text-xs font-medium transition-colors',
-              isActive
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-slate-500 dark:text-slate-400'
-            )}
-          >
-            <Icon size={22} strokeWidth={1.75} />
-            {label}
-          </NavLink>
-        ))}
+        <NavLink
+          to="/dashboard"
+          end
+          className={({ isActive }) => cn(
+            'flex-1 flex flex-col items-center justify-center gap-1 h-full min-h-[44px] text-xs font-medium transition-colors',
+            isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'
+          )}
+        >
+          <LayoutDashboard size={22} strokeWidth={1.75} />
+          Home
+        </NavLink>
+
+        <button
+          onClick={onProjects}
+          className="flex-1 flex flex-col items-center justify-center gap-1 h-full min-h-[44px] text-xs font-medium text-slate-500 dark:text-slate-400 transition-colors"
+        >
+          <FolderOpen size={22} strokeWidth={1.75} />
+          Projects
+        </button>
 
         {/* Floating capture button — sits above the bar */}
         <button

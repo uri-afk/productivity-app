@@ -68,7 +68,7 @@ export default function AppShell() {
         </main>
       </div>
 
-      <BottomTabBar onCapture={() => setCaptureOpen(true)} />
+      <BottomTabBar onCapture={() => setCaptureOpen(true)} onProjects={() => setSidebarOpen(true)} />
 
       <GlobalSearch
         open={searchOpen}
