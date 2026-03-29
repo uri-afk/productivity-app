@@ -414,6 +414,120 @@ function NewTaskRow({ sectionId, onSave, onCancel }) {
   )
 }
 
+// ── Mobile task row (phones only) ────────────────────────────────
+function MobileTaskRow({ task, isSubtask = false, onUpdate, onDelete, onOpenNotes, sections = [], onAddSubtask }) {
+  const [editing, setEditing] = useState(false)
+  const [titleVal, setTitleVal] = useState(task.title)
+  const [expanded, setExpanded] = useState(false)
+  const inputRef = useRef(null)
+  const done = task.status === 'done'
+  const hasSubtasks = (task.subtasks ?? []).length > 0
+
+  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+
+  function commitTitle() { onUpdate(task.id, { title: titleVal }); setEditing(false) }
+
+  return (
+    <>
+      <div className={cn(
+        'flex items-start gap-3 px-3 py-3 border-b border-slate-100 dark:border-slate-800',
+        done && 'opacity-50',
+        isSubtask && 'pl-8 bg-slate-50/50 dark:bg-slate-800/20'
+      )}>
+        {/* Checkbox */}
+        <button
+          onClick={() => onUpdate(task.id, { status: done ? 'todo' : 'done' })}
+          className={cn(
+            'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors',
+            done ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
+          )}>
+          {done && <Check size={10} className="text-white" strokeWidth={3} />}
+        </button>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <input ref={inputRef}
+              value={titleVal}
+              onChange={e => setTitleVal(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') commitTitle() }}
+              className="w-full bg-transparent outline-none text-sm text-slate-900 dark:text-white border-b border-blue-500 pb-0.5"
+            />
+          ) : (
+            <span
+              onClick={() => { setTitleVal(task.title); setEditing(true) }}
+              className={cn('text-sm block cursor-text', done ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-white')}>
+              {task.title || <span className="text-slate-300 dark:text-slate-600 italic text-xs">Untitled</span>}
+            </span>
+          )}
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <StatusBadge value={task.status} />
+            {task.due_date && <span className="text-xs text-slate-500 dark:text-slate-400">{task.due_date}</span>}
+            <PriorityBadge value={task.priority} />
+            {(task.tags ?? []).map(tag => (
+              <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{tag}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-0.5 shrink-0">
+          {!isSubtask && (
+            <button onClick={() => { if (hasSubtasks) setExpanded(v => !v); else onAddSubtask?.(task) }}
+              className="p-1.5 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+              <ChevronRight size={14} className={cn('transition-transform duration-150', expanded && 'rotate-90')} />
+            </button>
+          )}
+          <button onClick={() => onOpenNotes(task)}
+            className={cn('p-1.5 rounded transition-colors', task.task_notes ? 'text-blue-500 dark:text-blue-400' : 'text-slate-300 dark:text-slate-600 hover:text-blue-500')}>
+            <FileText size={14} />
+          </button>
+          <button onClick={() => onDelete(task.id)}
+            className="p-1.5 rounded text-slate-300 dark:text-slate-600 hover:text-red-500 transition-colors">
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Subtasks (expanded) */}
+      {!isSubtask && expanded && (task.subtasks ?? []).map(sub => (
+        <MobileTaskRow key={sub.id} task={sub} isSubtask
+          onUpdate={(_, changes) => onUpdate(task.id, { subtasks: (task.subtasks ?? []).map(s => s.id === sub.id ? { ...s, ...changes } : s) })}
+          onDelete={() => onUpdate(task.id, { subtasks: (task.subtasks ?? []).filter(s => s.id !== sub.id) })}
+          onOpenNotes={onOpenNotes}
+        />
+      ))}
+    </>
+  )
+}
+
+// ── Mobile new-task input ─────────────────────────────────────────
+function MobileNewTaskRow({ sectionId, onSave, onCancel }) {
+  const [title, setTitle] = useState('')
+  const ref = useRef(null)
+  const today = new Date().toISOString().split('T')[0]
+  useEffect(() => { ref.current?.focus() }, [])
+  function save() {
+    if (!title.trim()) return
+    onSave({ title: title.trim(), status: 'todo', priority: 'medium', due_date: today, tags: [], section_id: sectionId })
+    setTitle('')
+    ref.current?.focus()
+  }
+  return (
+    <div className="flex items-center gap-3 px-3 py-3 border-b border-slate-100 dark:border-slate-800 bg-blue-50/30 dark:bg-blue-900/10">
+      <div className="w-5 h-5 rounded border-2 border-dashed border-slate-300 dark:border-slate-600 shrink-0" />
+      <input ref={ref} value={title} onChange={e => setTitle(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); save() } if (e.key === 'Escape') onCancel() }}
+        onBlur={() => { if (!title.trim()) onCancel() }}
+        placeholder="Task name… (Enter to add)"
+        className="flex-1 bg-transparent outline-none text-sm text-slate-900 dark:text-white placeholder-slate-400"
+      />
+      <button onClick={onCancel} className="p-1 text-slate-400 hover:text-slate-600 shrink-0"><X size={13} /></button>
+    </div>
+  )
+}
+
 // ── Column widths colgroup ────────────────────────────────────────
 function TableColgroup() {
   return (
@@ -548,7 +662,47 @@ function TaskSection({
 
       {!collapsed && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-          <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
+
+          {/* ── Mobile layout (phones) ── */}
+          <div className="md:hidden">
+            {activeTasks.map(task => (
+              <MobileTaskRow key={task.id} task={task}
+                sections={allSections}
+                onUpdate={onUpdate} onDelete={onDeleteTask}
+                onOpenNotes={onOpenNotes}
+                onAddSubtask={handleAddSubtask}
+              />
+            ))}
+            {addingTask && (
+              <MobileNewTaskRow sectionId={section.id} onSave={handleCreate} onCancel={() => setAddingTask(false)} />
+            )}
+            {!addingTask && (
+              <button onClick={() => setAddingTask(true)}
+                className="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 w-full transition-colors">
+                <Plus size={13} /> Add task
+              </button>
+            )}
+            {completedTasks.length > 0 && (
+              <div className="border-t border-slate-100 dark:border-slate-800">
+                <button onClick={() => setShowCompleted(v => !v)}
+                  className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 w-full transition-colors">
+                  <ChevronRight size={12} className={cn('transition-transform duration-150', showCompleted && 'rotate-90')} />
+                  {completedTasks.length} completed
+                </button>
+                {showCompleted && completedTasks.map(task => (
+                  <MobileTaskRow key={task.id} task={task}
+                    sections={allSections}
+                    onUpdate={onUpdate} onDelete={onDeleteTask}
+                    onOpenNotes={onOpenNotes}
+                    onAddSubtask={handleAddSubtask}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Desktop table layout ── */}
+          <table className="hidden md:table w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
             <TableColgroup />
             <thead><TableHeader /></thead>
             <tbody>
@@ -633,49 +787,51 @@ function TaskSection({
             </tbody>
           </table>
 
-          {!addingTask && (
-            <button
-              onClick={() => setAddingTask(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 w-full transition-colors">
-              <Plus size={13} /> Add task
-            </button>
-          )}
-
-          {completedTasks.length > 0 && (
-            <div className="border-t border-slate-100 dark:border-slate-800">
+          <div className="hidden md:block">
+            {!addingTask && (
               <button
-                onClick={() => setShowCompleted(v => !v)}
-                className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 w-full transition-colors">
-                <ChevronRight size={12} className={cn('transition-transform duration-150', showCompleted && 'rotate-90')} />
-                {completedTasks.length} completed
+                onClick={() => setAddingTask(true)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 w-full transition-colors">
+                <Plus size={13} /> Add task
               </button>
-              {showCompleted && (
-                <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
-                  <TableColgroup />
-                  <tbody>
-                    {completedTasks.map(task => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        sections={allSections}
-                        activeCell={activeCell}
-                        onSetActiveCell={setActiveCell}
-                        onUpdate={onUpdate}
-                        onDelete={onDeleteTask}
-                        expandedSubtasks={expandedSubtasks}
-                        onToggleExpand={toggleExpand}
-                        onAddSubtask={handleAddSubtask}
-                        onOpenNotes={onOpenNotes}
-                        onEnterPressed={() => {}}
-                        onDragStart={onDragStart}
-                        onDragEnd={onDragEnd}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
+            )}
+
+            {completedTasks.length > 0 && (
+              <div className="border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => setShowCompleted(v => !v)}
+                  className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 w-full transition-colors">
+                  <ChevronRight size={12} className={cn('transition-transform duration-150', showCompleted && 'rotate-90')} />
+                  {completedTasks.length} completed
+                </button>
+                {showCompleted && (
+                  <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
+                    <TableColgroup />
+                    <tbody>
+                      {completedTasks.map(task => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          sections={allSections}
+                          activeCell={activeCell}
+                          onSetActiveCell={setActiveCell}
+                          onUpdate={onUpdate}
+                          onDelete={onDeleteTask}
+                          expandedSubtasks={expandedSubtasks}
+                          onToggleExpand={toggleExpand}
+                          onAddSubtask={handleAddSubtask}
+                          onOpenNotes={onOpenNotes}
+                          onEnterPressed={() => {}}
+                          onDragStart={onDragStart}
+                          onDragEnd={onDragEnd}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
