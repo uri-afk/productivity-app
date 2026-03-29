@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus, ChevronRight, FileText, Check, X, Trash2, FolderSymlink, GripVertical } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import NoteEditor from '../notes/NoteEditor'
@@ -36,20 +37,30 @@ function PriorityBadge({ value }) {
   )
 }
 
-function SelectPopup({ options, value, onChange, onClose, upward = false, alignRight = false }) {
+// SelectPopup renders in a portal so overflow-hidden parents can't clip it.
+// anchorRect = DOMRect of the trigger button.
+function SelectPopup({ options, value, onChange, onClose, anchorRect, upward = false, alignRight = false }) {
   const ref = useRef(null)
+
   useEffect(() => {
     function handler(e) { if (!ref.current?.contains(e.target)) onClose() }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose])
-  return (
+
+  if (!anchorRect) return null
+
+  const POPUP_W = 160
+  const POPUP_H = options.length * 36 + 8
+  const top = upward ? anchorRect.top - POPUP_H - 4 : anchorRect.bottom + 4
+  const left = alignRight
+    ? Math.max(4, anchorRect.right - POPUP_W)
+    : Math.min(anchorRect.left, window.innerWidth - POPUP_W - 4)
+
+  return createPortal(
     <div ref={ref}
-      className={cn(
-        'absolute z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 min-w-[150px]',
-        upward ? 'bottom-full mb-1' : 'top-full mt-1',
-        alignRight ? 'right-0 left-auto' : 'left-0',
-      )}>
+      style={{ position: 'fixed', top, left, width: POPUP_W, zIndex: 9999 }}
+      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1">
       {options.map(opt => (
         <button key={opt.value}
           onMouseDown={e => { e.preventDefault(); onChange(opt.value); onClose() }}
@@ -61,13 +72,19 @@ function SelectPopup({ options, value, onChange, onClose, upward = false, alignR
           {opt.label}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }
 
-function popupDir(e) {
+// Call on the trigger's onClick to get anchorRect + direction
+function getAnchor(e) {
   const r = e.currentTarget.getBoundingClientRect()
-  return { upward: window.innerHeight - r.bottom < 160, alignRight: window.innerWidth - r.right < 160 }
+  return {
+    rect: r,
+    upward: window.innerHeight - r.bottom < 160,
+    alignRight: window.innerWidth - r.right < 160,
+  }
 }
 
 // ── Task notes side panel (wraps NoteEditor) ──────────────────────
@@ -123,9 +140,9 @@ function TaskRow({
   const [statusOpen, setStatusOpen] = useState(false)
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [sectionOpen, setSectionOpen] = useState(false)
-  const [statusDir, setStatusDir] = useState({ upward: false, alignRight: false })
-  const [priorityDir, setPriorityDir] = useState({ upward: false, alignRight: false })
-  const [sectionDir, setSectionDir] = useState({ upward: false, alignRight: false })
+  const [statusAnchor, setStatusAnchor] = useState(null)
+  const [priorityAnchor, setPriorityAnchor] = useState(null)
+  const [sectionAnchor, setSectionAnchor] = useState(null)
   const [tagInput, setTagInput] = useState('')
 
   const isActive = f => activeCell?.rowId === id && activeCell?.field === f
@@ -225,9 +242,9 @@ function TaskRow({
       </td>
 
       {/* Status */}
-      <td className="w-28 px-2 py-2 relative">
+      <td className="w-28 px-2 py-2">
         <div className="cursor-pointer"
-          onClick={(e) => { setStatusDir(popupDir(e)); onSetActiveCell({ rowId: id, field: 'status' }); setStatusOpen(true) }}>
+          onClick={(e) => { const a = getAnchor(e); setStatusAnchor(a); onSetActiveCell({ rowId: id, field: 'status' }); setStatusOpen(true) }}>
           <StatusBadge value={task.status} />
         </div>
         {isActive('status') && statusOpen && (
@@ -235,7 +252,7 @@ function TaskRow({
             options={STATUS_OPTIONS} value={task.status}
             onChange={val => onUpdate(id, { status: val })}
             onClose={() => { setStatusOpen(false); onSetActiveCell(null) }}
-            upward={statusDir.upward} alignRight={statusDir.alignRight}
+            anchorRect={statusAnchor?.rect} upward={statusAnchor?.upward} alignRight={statusAnchor?.alignRight}
           />
         )}
       </td>
@@ -262,9 +279,9 @@ function TaskRow({
       </td>
 
       {/* Priority */}
-      <td className="w-24 px-2 py-2 relative">
+      <td className="w-24 px-2 py-2">
         <div className="cursor-pointer"
-          onClick={(e) => { setPriorityDir(popupDir(e)); onSetActiveCell({ rowId: id, field: 'priority' }); setPriorityOpen(true) }}>
+          onClick={(e) => { const a = getAnchor(e); setPriorityAnchor(a); onSetActiveCell({ rowId: id, field: 'priority' }); setPriorityOpen(true) }}>
           <PriorityBadge value={task.priority} />
         </div>
         {isActive('priority') && priorityOpen && (
@@ -272,7 +289,7 @@ function TaskRow({
             options={PRIORITY_OPTIONS} value={task.priority}
             onChange={val => onUpdate(id, { priority: val })}
             onClose={() => { setPriorityOpen(false); onSetActiveCell(null) }}
-            upward={priorityDir.upward} alignRight={priorityDir.alignRight}
+            anchorRect={priorityAnchor?.rect} upward={priorityAnchor?.upward} alignRight={priorityAnchor?.alignRight}
           />
         )}
       </td>
@@ -335,9 +352,9 @@ function TaskRow({
       <td className="w-12 py-2 pr-2">
         <div className="flex items-center gap-1 justify-end">
           {!isSubtask && sections.length > 1 && (
-            <div className="relative">
+            <div>
               <button
-                onClick={(e) => { setSectionDir(popupDir(e)); onSetActiveCell({ rowId: id, field: 'section' }); setSectionOpen(true) }}
+                onClick={(e) => { const a = getAnchor(e); setSectionAnchor(a); onSetActiveCell({ rowId: id, field: 'section' }); setSectionOpen(true) }}
                 title="Move to section"
                 className="p-0.5 text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-colors">
                 <FolderSymlink size={12} />
@@ -348,7 +365,7 @@ function TaskRow({
                   value={task.section_id ?? 'general'}
                   onChange={val => { onUpdate(id, { section_id: val }) }}
                   onClose={() => { setSectionOpen(false); onSetActiveCell(null) }}
-                  upward={sectionDir.upward} alignRight={sectionDir.alignRight}
+                  anchorRect={sectionAnchor?.rect} upward={sectionAnchor?.upward} alignRight={sectionAnchor?.alignRight}
                 />
               )}
             </div>
@@ -422,6 +439,8 @@ function MobileTaskRow({ task, isSubtask = false, onUpdate, onDelete, onOpenNote
   const [statusOpen, setStatusOpen] = useState(false)
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
+  const [statusAnchor, setStatusAnchor] = useState(null)
+  const [priorityAnchor, setPriorityAnchor] = useState(null)
   const inputRef = useRef(null)
   const dateRef = useRef(null)
   const done = task.status === 'done'
@@ -468,51 +487,45 @@ function MobileTaskRow({ task, isSubtask = false, onUpdate, onDelete, onOpenNote
           )}
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             {/* Tappable status */}
-            <div className="relative">
-              <button onClick={() => setStatusOpen(v => !v)}>
-                <StatusBadge value={task.status} />
-              </button>
-              {statusOpen && (
-                <SelectPopup
-                  options={STATUS_OPTIONS} value={task.status}
-                  onChange={val => { onUpdate(task.id, { status: val }); setStatusOpen(false) }}
-                  onClose={() => setStatusOpen(false)}
-                  upward alignRight={false}
-                />
-              )}
-            </div>
+            <button onClick={(e) => { const a = getAnchor(e); setStatusAnchor(a); setStatusOpen(v => !v) }}>
+              <StatusBadge value={task.status} />
+            </button>
+            {statusOpen && (
+              <SelectPopup
+                options={STATUS_OPTIONS} value={task.status}
+                onChange={val => { onUpdate(task.id, { status: val }); setStatusOpen(false) }}
+                onClose={() => setStatusOpen(false)}
+                anchorRect={statusAnchor?.rect} upward={statusAnchor?.upward} alignRight={statusAnchor?.alignRight}
+              />
+            )}
 
             {/* Tappable due date */}
-            <div className="relative">
-              {dateOpen ? (
-                <input ref={dateRef} type="date"
-                  defaultValue={task.due_date ?? ''}
-                  onBlur={e => { onUpdate(task.id, { due_date: e.target.value || null }); setDateOpen(false) }}
-                  onChange={e => { onUpdate(task.id, { due_date: e.target.value || null }); setDateOpen(false) }}
-                  className="text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 outline-none text-slate-700 dark:text-slate-300"
-                />
-              ) : (
-                <button onClick={() => setDateOpen(true)}
-                  className="text-xs text-slate-500 dark:text-slate-400 border border-transparent hover:border-slate-300 rounded px-1 py-0.5 transition-colors">
-                  {task.due_date || <span className="text-slate-300 dark:text-slate-600">+ date</span>}
-                </button>
-              )}
-            </div>
+            {dateOpen ? (
+              <input ref={dateRef} type="date"
+                defaultValue={task.due_date ?? ''}
+                onBlur={e => { onUpdate(task.id, { due_date: e.target.value || null }); setDateOpen(false) }}
+                onChange={e => { onUpdate(task.id, { due_date: e.target.value || null }); setDateOpen(false) }}
+                className="text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 outline-none text-slate-700 dark:text-slate-300"
+              />
+            ) : (
+              <button onClick={() => setDateOpen(true)}
+                className="text-xs text-slate-500 dark:text-slate-400 border border-transparent hover:border-slate-300 rounded px-1 py-0.5 transition-colors">
+                {task.due_date || <span className="text-slate-300 dark:text-slate-600">+ date</span>}
+              </button>
+            )}
 
             {/* Tappable priority */}
-            <div className="relative">
-              <button onClick={() => setPriorityOpen(v => !v)}>
-                <PriorityBadge value={task.priority} />
-              </button>
-              {priorityOpen && (
-                <SelectPopup
-                  options={PRIORITY_OPTIONS} value={task.priority}
-                  onChange={val => { onUpdate(task.id, { priority: val }); setPriorityOpen(false) }}
-                  onClose={() => setPriorityOpen(false)}
-                  upward alignRight={false}
-                />
-              )}
-            </div>
+            <button onClick={(e) => { const a = getAnchor(e); setPriorityAnchor(a); setPriorityOpen(v => !v) }}>
+              <PriorityBadge value={task.priority} />
+            </button>
+            {priorityOpen && (
+              <SelectPopup
+                options={PRIORITY_OPTIONS} value={task.priority}
+                onChange={val => { onUpdate(task.id, { priority: val }); setPriorityOpen(false) }}
+                onClose={() => setPriorityOpen(false)}
+                anchorRect={priorityAnchor?.rect} upward={priorityAnchor?.upward} alignRight={priorityAnchor?.alignRight}
+              />
+            )}
 
             {(task.tags ?? []).map(tag => (
               <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{tag}</span>
