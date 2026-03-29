@@ -109,7 +109,7 @@ export default function TaskNoteEditorPanel({ note, onBack, onSave }) {
 
         {isTable ? (
           <div className="flex-1 overflow-auto px-2 py-3">
-            <TableGrid table={table} onChange={handleTableChange} />
+            <TableGrid table={table} onChange={handleTableChange} containerWidth={width} />
           </div>
         ) : (
           <>

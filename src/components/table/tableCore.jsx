@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Check, Plus, X, Trash2, GripVertical } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
@@ -58,7 +58,7 @@ export function parseTable(content) {
 // ── Color picker swatch grid ─────────────────────────────────────────
 function ColorPicker({ value, onChange }) {
   return (
-    <div className="grid grid-cols-3 gap-1.5 p-2">
+    <div className="grid grid-cols-3 gap-1.5 p-2" style={{ width: 104 }}>
       {OPTION_COLORS.map(color => (
         <button key={color} onClick={() => onChange(color)}
           className={cn('w-5 h-5 rounded-full transition-transform hover:scale-110 shrink-0',
@@ -96,7 +96,7 @@ function OptionsEditor({ options, onChange }) {
               style={{ backgroundColor: opt.color }}
             />
             {colorPickerFor === opt.id && (
-              <div className="absolute left-0 top-full mt-1 z-[60] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl">
+              <div className="absolute left-6 top-0 z-[60] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl">
                 <ColorPicker value={opt.color} onChange={c => {
                   onChange(options.map(o => o.id === opt.id ? { ...o, color: c } : o))
                   setColorPickerFor(null)
@@ -203,8 +203,15 @@ function Cell({ value, col, onChange }) {
 
   if (type === 'multiselect') {
     const selected = Array.isArray(value) ? value : (value ? String(value).split(',').map(s => s.trim()).filter(Boolean) : [])
+    const [newTag, setNewTag] = useState('')
+    function addTag() {
+      const t = newTag.trim()
+      if (!t || selected.includes(t)) { setNewTag(''); return }
+      onChange([...selected, t])
+      setNewTag('')
+    }
     return (
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1 items-center">
         {opts.map(o => {
           const on = selected.includes(o.label)
           return (
@@ -217,18 +224,43 @@ function Cell({ value, col, onChange }) {
               }>{o.label}</button>
           )
         })}
+        {/* Free-text tag entry */}
+        {selected.filter(s => !opts.find(o => o.label === s)).map(s => (
+          <span key={s} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+            {s}
+            <button type="button" onClick={() => onChange(selected.filter(x => x !== s))} className="hover:text-red-500"><X size={8} /></button>
+          </span>
+        ))}
+        <input
+          value={newTag}
+          onChange={e => setNewTag(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() } }}
+          onBlur={addTag}
+          placeholder="+ tag"
+          className="text-xs bg-transparent outline-none text-slate-500 dark:text-slate-400 placeholder-slate-300 w-12 min-w-0"
+        />
       </div>
     )
   }
 
   if (type === 'date') return <input type="date" value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200" />
   if (type === 'number') return <input type="number" value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 text-right" />
-  return <input type={type === 'url' ? 'url' : 'text'} value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200" />
+  // Text and URL: use textarea so content wraps and grows with text
+  return (
+    <textarea
+      value={value ?? ''}
+      onChange={e => onChange(e.target.value)}
+      rows={1}
+      className="w-full bg-transparent outline-none text-sm text-slate-800 dark:text-slate-200 resize-none overflow-hidden leading-snug"
+      style={{ fieldSizing: 'content' }}
+      onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
+    />
+  )
 }
 
 // ── TableGrid ────────────────────────────────────────────────────────
 // onChange(nextTable) is called for every mutation. Parent debounces saves.
-export function TableGrid({ table, onChange }) {
+export function TableGrid({ table, onChange, containerWidth }) {
   const [dragColIdx, setDragColIdx] = useState(null)
   const [dragOverColIdx, setDragOverColIdx] = useState(null)
   const [typeMenuCol, setTypeMenuCol] = useState(null)
@@ -236,11 +268,17 @@ export function TableGrid({ table, onChange }) {
   const colGroupRef = useRef(null)
   const tableRef = useRef(null)
 
-  // Explicit table width = sum of col widths + 40px action column.
-  // Without this, table-layout: fixed fills the container and scales all
-  // <col> widths proportionally — so "140px" might render as 400px,
-  // making it impossible to shrink below the scaled size.
-  const tableWidth = table.columns.reduce((s, c) => s + (colWidths[c.id] ?? 140), 0) + 40
+  // Explicit table width = max(sum of col widths, container width) + 40px action column.
+  // Using containerWidth ensures the table fills the panel when it's wider than the columns.
+  const colsWidth = table.columns.reduce((s, c) => s + (colWidths[c.id] ?? 140), 0) + 40
+  const tableWidth = containerWidth ? Math.max(colsWidth, containerWidth - 2) : colsWidth
+
+  // When container grows (panel resize), update the table element width
+  useEffect(() => {
+    if (tableRef.current && containerWidth) {
+      tableRef.current.style.width = Math.max(colsWidth, containerWidth - 2) + 'px'
+    }
+  }, [containerWidth]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function updateCell(rowId, colId, val) {
     onChange({ ...table, rows: table.rows.map(r => r.id === rowId ? { ...r, cells: { ...r.cells, [colId]: val } } : r) })
@@ -357,8 +395,9 @@ export function TableGrid({ table, onChange }) {
                       <button
                         onClick={() => setTypeMenuCol(typeMenuCol === col.id ? null : col.id)}
                         className="text-xs text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors border border-slate-200 dark:border-slate-600 rounded px-1 py-0.5 leading-none"
+                      title={COL_TYPES.find(t => t.id === col.type)?.label ?? 'Text'}
                       >
-                        {COL_TYPES.find(t => t.id === col.type)?.label ?? 'Text'}
+                        {(COL_TYPES.find(t => t.id === col.type)?.label ?? 'T')[0]}
                       </button>
                       {typeMenuCol === col.id && (
                         <ColTypeMenu
@@ -373,7 +412,7 @@ export function TableGrid({ table, onChange }) {
                     <input
                       value={col.name}
                       onChange={e => updateHeader(col.id, e.target.value)}
-                      className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide bg-transparent outline-none min-w-0 cursor-text"
+                      className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-transparent outline-none min-w-0 cursor-text"
                     />
 
                     {/* Delete column */}
@@ -406,7 +445,7 @@ export function TableGrid({ table, onChange }) {
           {table.rows.map(row => (
             <tr key={row.id} className="group/row hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
               {table.columns.map(col => (
-                <td key={col.id} className="border-b border-r border-slate-200 dark:border-slate-700 px-3 py-1.5 overflow-hidden">
+                <td key={col.id} className="border-b border-r border-slate-200 dark:border-slate-700 px-3 py-1.5">
                   <Cell value={row.cells[col.id]} col={col} onChange={val => updateCell(row.id, col.id, val)} />
                 </td>
               ))}

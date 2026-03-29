@@ -88,7 +88,7 @@ export default function TableNoteEditor({ note, onClose, onUpdate }) {
 
         {/* Table */}
         <div className="flex-1 overflow-auto px-4 py-4">
-          <TableGrid table={table} onChange={handleTableChange} />
+          <TableGrid table={table} onChange={handleTableChange} containerWidth={width} />
         </div>
       </div>
     </div>

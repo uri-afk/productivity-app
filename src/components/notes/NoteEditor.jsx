@@ -440,8 +440,18 @@ function TableNodeView({ node, updateAttributes, deleteNode }) {
   const { id, name: initialName } = node.attrs
   const [tableName, setTableName] = useState(initialName || 'Table')
   const [height, setHeight] = useState(null)
+  const [containerWidth, setContainerWidth] = useState(null)
   const nameTimeout = useRef(null)
   const contentRef = useRef(null)
+  const wrapperRef = useRef(null)
+
+  // Track the NodeViewWrapper width so TableGrid can fill it
+  useEffect(() => {
+    if (!wrapperRef.current) return
+    const ro = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width))
+    ro.observe(wrapperRef.current)
+    return () => ro.disconnect()
+  }, [])
 
   const tableData = node.attrs.tableData || defaultTable()
 
@@ -500,8 +510,8 @@ function TableNodeView({ node, updateAttributes, deleteNode }) {
   }
 
   return (
-    <NodeViewWrapper className="my-4" contentEditable={false}>
-      <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden" style={{ width: 'fit-content', maxWidth: '100%' }}>
+    <NodeViewWrapper ref={wrapperRef} className="my-4 block" contentEditable={false}>
+      <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden" style={{ width: '100%' }}>
         <div
           className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 select-none"
           data-drag-handle
@@ -530,7 +540,7 @@ function TableNodeView({ node, updateAttributes, deleteNode }) {
         </div>
 
         <div ref={contentRef} style={height ? { height, overflowY: 'auto', overflowX: 'auto' } : { overflowX: 'auto' }}>
-          <TableGrid table={tableData} onChange={newData => updateAttributes({ tableData: newData })} />
+          <TableGrid table={tableData} onChange={newData => updateAttributes({ tableData: newData })} containerWidth={containerWidth} />
         </div>
 
         <div
