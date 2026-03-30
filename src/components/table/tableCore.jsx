@@ -388,7 +388,7 @@ export function TableGrid({ table, onChange, containerWidth }) {
               >
                 {/* Flex row: content + resize handle at right edge (no absolute positioning) */}
                 <div className="flex items-stretch">
-                  <div className="flex items-center gap-1 px-2 py-2 flex-1 min-w-0">
+                  <div className="flex items-start gap-1 px-2 py-2 flex-1 min-w-0">
                     {/* Drag-to-reorder handle */}
                     <div
                       draggable
