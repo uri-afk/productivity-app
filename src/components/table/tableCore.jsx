@@ -422,10 +422,17 @@ export function TableGrid({ table, onChange, containerWidth }) {
                     </div>
 
                     {/* Column name */}
-                    <input
+                    <textarea
                       value={col.name}
                       onChange={e => updateHeader(col.id, e.target.value)}
-                      className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-transparent outline-none min-w-0 cursor-text"
+                      rows={1}
+                      ref={el => {
+                        if (!el) return
+                        el.style.height = 'auto'
+                        el.style.height = el.scrollHeight + 'px'
+                      }}
+                      onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
+                      className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-transparent outline-none min-w-0 cursor-text resize-none overflow-hidden leading-snug"
                     />
 
                     {/* Delete column */}
